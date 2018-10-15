@@ -28,7 +28,7 @@ namespace JK.NuGetTools.Cli
 
             if (!cache.ContainsKey(key))
             {
-                cache[key] = await base.GetLatestPackageAsync(packageId, versionRange, cancellationToken);
+                cache[key] = await base.GetLatestPackageAsync(packageId, versionRange, cancellationToken).ConfigureAwait(false);
             }
 
             return (PackageIdentity)cache[key];
@@ -40,7 +40,7 @@ namespace JK.NuGetTools.Cli
 
             if (!cache.ContainsKey(key))
             {
-                cache[key] = await base.GetPackageDependenciesAsync(package, targetFramework, cancellationToken);
+                cache[key] = await base.GetPackageDependenciesAsync(package, targetFramework, cancellationToken).ConfigureAwait(false);
             }
 
             return (IEnumerable<PackageIdentity>)cache[key];

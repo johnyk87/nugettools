@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using NuGet.Frameworks;
@@ -28,11 +29,16 @@ namespace JK.NuGetTools.Cli
             
             try
             {
-                var package = await sourceRepository.GetLatestPackageAsync(packageId, null, cancellationToken);
+                var package = await sourceRepository.GetLatestPackageAsync(packageId, null, cancellationToken).ConfigureAwait(false);
 
-                var packageHierarchy = await sourceRepository.GetPackageHierarchyAsync(package, targetFramework, cancellationToken);
+                var packageHierarchy = await sourceRepository.GetPackageHierarchyAsync(package, targetFramework, cancellationToken).ConfigureAwait(false);
 
-                PrintPackageHierarchy(packageHierarchy);
+                var exclusionFilters = new List<Regex>();
+                exclusionFilters.Add(new Regex("^System"));
+                exclusionFilters.Add(new Regex("^Microsoft"));
+
+                PrintPackageHierarchyAsGraph(packageHierarchy, ref exclusionFilters);
+                //PrintPackageHierarchyAsList(packageHierarchy, ref exclusionFilters);
             }
             catch(Exception ex)
             {
@@ -85,23 +91,65 @@ namespace JK.NuGetTools.Cli
             return true;
         }
 
-        private static void PrintPackageHierarchy(PackageHierarchy packageHierarchy, int level = 0)
+        private static void PrintPackageHierarchyAsGraph(PackageHierarchy packageHierarchy, ref List<Regex> exclusionFilters)
         {
-            Console.WriteLine($"{Indent(level)}{packageHierarchy.Identity.ToString()}");
+            if (exclusionFilters == null)
+            {
+                exclusionFilters = new List<Regex>();
+            }
 
+            Console.WriteLine($"digraph \"{packageHierarchy.Identity.ToString()}\" {{");
+
+            PrintPackageHierarchyAsGraph(packageHierarchy, ref exclusionFilters, 1);
+
+            Console.WriteLine("}");
+            Console.WriteLine("The graph can be visualized with any graphviz based visualizer like the online tool http://viz-js.com/.");
+        }
+
+        private static void PrintPackageHierarchyAsGraph(PackageHierarchy packageHierarchy, ref List<Regex> exclusionFilters, int level)
+        {
             foreach(var child in packageHierarchy.Children)
             {
-                PrintPackageHierarchy(child, level + 1);
+                Console.WriteLine($"{Indent(level)}\"{packageHierarchy.Identity.ToString()}\" -> \"{child.Identity.ToString()}\"");
+
+                if (exclusionFilters.Any(f => f.IsMatch(child.Identity.Id)))
+                {
+                    continue;
+                }
+
+                exclusionFilters.Add(new Regex($"^{child.Identity.Id}$"));
+
+                PrintPackageHierarchyAsGraph(child, ref exclusionFilters, level + 1);
             }
         }
 
-        private static string Indent(int level)
+        private static void PrintPackageHierarchyAsList(PackageHierarchy packageHierarchy, ref List<Regex> exclusionFilters, int level = 0)
+        {
+            if (exclusionFilters == null)
+            {
+                exclusionFilters = new List<Regex>();
+            }
+
+            Console.WriteLine($"{Indent(level, "| ")}{packageHierarchy.Identity.ToString()}");
+
+            if (exclusionFilters.Any(f => f.IsMatch(packageHierarchy.Identity.Id)))
+            {
+                return;
+            }
+
+            foreach(var child in packageHierarchy.Children)
+            {
+                PrintPackageHierarchyAsList(child, ref exclusionFilters, level + 1);
+            }
+        }
+
+        private static string Indent(int level, string indentString = "  ")
         {
             string indent = string.Empty;
 
             while(level > 0)
             {
-                indent += "| ";
+                indent += indentString;
 
                 level--;
             }

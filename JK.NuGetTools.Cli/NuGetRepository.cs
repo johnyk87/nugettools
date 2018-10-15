@@ -69,7 +69,7 @@ namespace JK.NuGetTools.Cli
         {
             if (string.IsNullOrWhiteSpace(packageId)) throw new ArgumentNullException(nameof(packageId));
 
-            var packageVersions = await this.MetadataResource.GetVersions(packageId, true, true, this.sourceCacheContext, this.log, cancellationToken);
+            var packageVersions = await this.MetadataResource.GetVersions(packageId, true, true, this.sourceCacheContext, this.log, cancellationToken).ConfigureAwait(false);
 
             versionRange = new VersionRange(versionRange ?? VersionRange.All, new FloatRange(NuGetVersionFloatBehavior.Major));
 
@@ -89,22 +89,22 @@ namespace JK.NuGetTools.Cli
         {
             if (package == null) throw new ArgumentNullException(nameof(package));
 
-            var packageMetadata = await this.PackageMetadataResource.GetMetadataAsync(package, this.sourceCacheContext, this.log, cancellationToken);
+            var packageMetadata = await this.PackageMetadataResource.GetMetadataAsync(package, this.sourceCacheContext, this.log, cancellationToken).ConfigureAwait(false);
 
             if (!TryResolveDependencies(packageMetadata, targetFramework, out var packageDependencies, out var packageFramework))
             {
                 throw new Exception($"Package \"{packageMetadata.Identity.ToString()}\" is not compatible with {targetFramework.GetShortFolderName()}");
             }
 
-            return await Task.WhenAll(packageDependencies.Select(async p => await this.GetLatestPackageAsync(p.Id, p.VersionRange, cancellationToken)));
+            return await Task.WhenAll(packageDependencies.Select(p => this.GetLatestPackageAsync(p.Id, p.VersionRange, cancellationToken))).ConfigureAwait(false);
         }
 
 
-        public virtual async Task<PackageHierarchy> GetPackageHierarchyAsync(PackageIdentity package
+        public virtual Task<PackageHierarchy> GetPackageHierarchyAsync(PackageIdentity package
                                                                             , NuGetFramework targetFramework
                                                                             , CancellationToken cancellationToken)
         {
-            return await GetPackageHierarchyAsync(package, targetFramework, string.Empty, cancellationToken);
+            return GetPackageHierarchyAsync(package, targetFramework, string.Empty, cancellationToken);
         }
 
 
@@ -122,14 +122,14 @@ namespace JK.NuGetTools.Cli
 
             try
             {
-                dependencies = await GetPackageDependenciesAsync(package, targetFramework, cancellationToken);
+                dependencies = await GetPackageDependenciesAsync(package, targetFramework, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 throw new Exception($"Error obtaining dependencies at {currentPath}: {ex.Message}", ex);
             }
 
-            var children = await Task.WhenAll(dependencies.Select(async p => await GetPackageHierarchyAsync(p, targetFramework, currentPath, cancellationToken)));
+            var children = await Task.WhenAll(dependencies.Select(p => GetPackageHierarchyAsync(p, targetFramework, currentPath, cancellationToken))).ConfigureAwait(false);
 
             return new PackageHierarchy(package, children);
         }
