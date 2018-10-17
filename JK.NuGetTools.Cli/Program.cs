@@ -1,35 +1,57 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
-using NuGet.Frameworks;
-using NuGet.Packaging.Core;
-
-namespace JK.NuGetTools.Cli
+﻿namespace JK.NuGetTools.Cli
 {
-    class Program
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Reflection;
+    using System.Text.RegularExpressions;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using NuGet.Frameworks;
+    using NuGet.Packaging.Core;
+    using McMaster.Extensions.CommandLineUtils;
+    using System.ComponentModel.DataAnnotations;
+
+    public class Program
     {
-        private static readonly NuGetFramework DefaultTargetFramework = NuGetFramework.AnyFramework;
-        private static readonly string DefaultFeedUrl = "https://api.nuget.org/v3/index.json";
-
-        static async Task Main(string[] args)
+        private enum ErrorCode
         {
-            if (!TryParseArguments(args, out string packageId, out NuGetFramework targetFramework, out string feedUrl, out string errorMessage))
-            {
-                Console.WriteLine(errorMessage);
-                ShowUsage();
-                return;
-            }
+            Success = 0,
+            UnknownError = -1,
+        }
 
+        private const string DefaultFeedUrl = "https://api.nuget.org/v3/index.json";
+        private static readonly NuGetFramework DefaultTargetFramework = NuGetFramework.AnyFramework;
+
+        private readonly IConsole console;
+
+        public Program(IConsole console)
+        {
+            this.console = console;
+        }
+
+        [Argument(0, Description = "The package identifier")]
+        [Required]
+        public string PackageId { get; }
+
+        [Option("-t|--target-framework", Description = "The target framework. Default: any.")]
+        [SupportedNuGetFramework]
+        public string TargetFramework { get; }
+
+        [Option("-s|--source-feed-url", Description = "The URL of the source feed. Default: \"" + DefaultFeedUrl + "\".")]
+        public string SourceFeedUrl { get; }
+
+        public static Task<int> Main(string[] args) => CommandLineApplication.ExecuteAsync<Program>(args);
+
+        private async Task<int> OnExecuteAsync()
+        {
+            var targetFramework = this.TargetFramework == null ? DefaultTargetFramework : NuGetFramework.Parse(this.TargetFramework);
             var cancellationToken = CancellationToken.None;
-            var sourceRepository = new CachedNuGetRepository(feedUrl);
+            var sourceRepository = new CachedNuGetRepository(this.SourceFeedUrl ?? DefaultFeedUrl);
             
             try
             {
-                var package = await sourceRepository.GetLatestPackageAsync(packageId, null, cancellationToken).ConfigureAwait(false);
+                var package = await sourceRepository.GetLatestPackageAsync(this.PackageId, null, cancellationToken).ConfigureAwait(false);
 
                 var packageHierarchy = await sourceRepository.GetPackageHierarchyAsync(package, targetFramework, cancellationToken).ConfigureAwait(false);
 
@@ -39,78 +61,37 @@ namespace JK.NuGetTools.Cli
 
                 PrintPackageHierarchyAsGraph(packageHierarchy, ref exclusionFilters);
                 //PrintPackageHierarchyAsList(packageHierarchy, ref exclusionFilters);
+
+                return (int)ErrorCode.Success;
             }
             catch(Exception ex)
             {
-                Console.WriteLine($"Error: {ex.Message}. StackTrace: {ex.StackTrace}");
+                this.console.Error.WriteLine($"Error: {ex.Message}. StackTrace: {ex.StackTrace}");
+
+                return (int)ErrorCode.UnknownError;
             }
         }
 
-        private static void ShowUsage()
-        {
-            Console.WriteLine($"$> dotnet run {Assembly.GetEntryAssembly().GetName().Name} <packageId> [<targetFramework>] [<feedUrl>]");
-        }
-
-        private static bool TryParseArguments(string[] args, out string packageId, out NuGetFramework targetFramework, out string feedUrl, out string errorMessage)
-        {
-            packageId = null;
-            targetFramework = DefaultTargetFramework;
-            feedUrl = DefaultFeedUrl;
-            errorMessage = string.Empty;
-            var argIdx = 0;
-
-            if (args.Length == 0)
-            {
-                errorMessage = "Invalid number of arguments. See usage.";
-                return false;
-            }
-
-            if (args.Length > argIdx)
-            {
-                packageId = args[argIdx];
-            }
-            ++argIdx;
-            
-            if (args.Length > argIdx)
-            {
-                targetFramework = NuGetFramework.Parse(args[argIdx]);
-                if (targetFramework.IsUnsupported)
-                {
-                    errorMessage = $"Unsupported target framework: {args[argIdx]}";
-                    return false;
-                }
-            }
-            ++argIdx;
-
-            if (args.Length > argIdx)
-            {
-                feedUrl = args[argIdx];
-            }
-            ++argIdx;
-
-            return true;
-        }
-
-        private static void PrintPackageHierarchyAsGraph(PackageHierarchy packageHierarchy, ref List<Regex> exclusionFilters)
+        private void PrintPackageHierarchyAsGraph(PackageHierarchy packageHierarchy, ref List<Regex> exclusionFilters)
         {
             if (exclusionFilters == null)
             {
                 exclusionFilters = new List<Regex>();
             }
 
-            Console.WriteLine($"digraph \"{packageHierarchy.Identity.ToString()}\" {{");
+            this.console.WriteLine($"digraph \"{packageHierarchy.Identity.ToString()}\" {{");
 
             PrintPackageHierarchyAsGraph(packageHierarchy, ref exclusionFilters, 1);
 
-            Console.WriteLine("}");
-            Console.WriteLine("The graph can be visualized with any graphviz based visualizer like the online tool http://viz-js.com/.");
+            this.console.WriteLine("}");
+            this.console.WriteLine("The graph can be visualized with any graphviz based visualizer like the online tool http://viz-js.com/.");
         }
 
-        private static void PrintPackageHierarchyAsGraph(PackageHierarchy packageHierarchy, ref List<Regex> exclusionFilters, int level)
+        private void PrintPackageHierarchyAsGraph(PackageHierarchy packageHierarchy, ref List<Regex> exclusionFilters, int level)
         {
             foreach(var child in packageHierarchy.Children)
             {
-                Console.WriteLine($"{Indent(level)}\"{packageHierarchy.Identity.ToString()}\" -> \"{child.Identity.ToString()}\"");
+                this.console.WriteLine($"{Indent(1)}\"{packageHierarchy.Identity.ToString()}\" -> \"{child.Identity.ToString()}\"");
 
                 if (exclusionFilters.Any(f => f.IsMatch(child.Identity.Id)))
                 {
@@ -123,14 +104,14 @@ namespace JK.NuGetTools.Cli
             }
         }
 
-        private static void PrintPackageHierarchyAsList(PackageHierarchy packageHierarchy, ref List<Regex> exclusionFilters, int level = 0)
+        private void PrintPackageHierarchyAsList(PackageHierarchy packageHierarchy, ref List<Regex> exclusionFilters, int level = 0)
         {
             if (exclusionFilters == null)
             {
                 exclusionFilters = new List<Regex>();
             }
 
-            Console.WriteLine($"{Indent(level, "| ")}{packageHierarchy.Identity.ToString()}");
+            this.console.WriteLine($"{Indent(level, "| ")}{packageHierarchy.Identity.ToString()}");
 
             if (exclusionFilters.Any(f => f.IsMatch(packageHierarchy.Identity.Id)))
             {
@@ -145,7 +126,7 @@ namespace JK.NuGetTools.Cli
 
         private static string Indent(int level, string indentString = "  ")
         {
-            string indent = string.Empty;
+            var indent = string.Empty;
 
             while(level > 0)
             {

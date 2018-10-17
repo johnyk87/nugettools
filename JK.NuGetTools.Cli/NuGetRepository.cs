@@ -1,18 +1,18 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using NuGet.Common;
-using NuGet.Frameworks;
-using NuGet.Packaging.Core;
-using NuGet.Protocol;
-using NuGet.Protocol.Core.Types;
-using NuGet.Versioning;
-
 namespace JK.NuGetTools.Cli
 {
-    public class NuGetRepository
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using NuGet.Common;
+    using NuGet.Frameworks;
+    using NuGet.Packaging.Core;
+    using NuGet.Protocol;
+    using NuGet.Protocol.Core.Types;
+    using NuGet.Versioning;
+
+    internal class NuGetRepository
     {
         private readonly SourceRepository sourceRepository;
         private readonly ILogger log;

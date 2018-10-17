@@ -1,11 +1,11 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using NuGet.Packaging.Core;
-
 namespace JK.NuGetTools.Cli
 {
-    public class PackageHierarchy
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using NuGet.Packaging.Core;
+
+    internal class PackageHierarchy
     {
         public PackageHierarchy(PackageIdentity identity) : this(identity, null) { }
 

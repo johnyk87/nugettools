@@ -1,18 +1,18 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using NuGet.Common;
-using NuGet.Frameworks;
-using NuGet.Packaging.Core;
-using NuGet.Protocol;
-using NuGet.Protocol.Core.Types;
-using NuGet.Versioning;
-
 namespace JK.NuGetTools.Cli
 {
-    public class CachedNuGetRepository : NuGetRepository
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using NuGet.Common;
+    using NuGet.Frameworks;
+    using NuGet.Packaging.Core;
+    using NuGet.Protocol;
+    using NuGet.Protocol.Core.Types;
+    using NuGet.Versioning;
+
+    internal class CachedNuGetRepository : NuGetRepository
     {
         private Dictionary<string, object> cache = new Dictionary<string, object>();
 
