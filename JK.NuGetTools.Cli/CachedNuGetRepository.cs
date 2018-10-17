@@ -14,42 +14,52 @@ namespace JK.NuGetTools.Cli
 
     internal class CachedNuGetRepository : NuGetRepository
     {
-        private Dictionary<string, object> cache = new Dictionary<string, object>();
+        private readonly Dictionary<string, object> cache = new Dictionary<string, object>();
 
-        public CachedNuGetRepository(string feedUrl) : base(feedUrl) { }
-
-        public CachedNuGetRepository(string feedUrl, SourceCacheContext sourceCacheContext, ILogger log) : base(feedUrl, sourceCacheContext, log) { }
-
-        public override async Task<PackageIdentity> GetLatestPackageAsync(string packageId
-                                                                        , VersionRange versionRange
-                                                                        , CancellationToken cancellationToken)
+        public CachedNuGetRepository(string feedUrl)
+            : base(feedUrl)
         {
-            var key = BuildKey(nameof(GetLatestPackageAsync), packageId, versionRange);
-
-            if (!cache.ContainsKey(key))
-            {
-                cache[key] = await base.GetLatestPackageAsync(packageId, versionRange, cancellationToken).ConfigureAwait(false);
-            }
-
-            return (PackageIdentity)cache[key];
         }
 
-        public override async Task<IEnumerable<PackageIdentity>> GetPackageDependenciesAsync(PackageIdentity package, NuGetFramework targetFramework, CancellationToken cancellationToken)
+        public CachedNuGetRepository(string feedUrl, SourceCacheContext sourceCacheContext, ILogger log)
+            : base(feedUrl, sourceCacheContext, log)
         {
-            var key = BuildKey(nameof(GetLatestPackageAsync), package, targetFramework.GetShortFolderName());
-
-            if (!cache.ContainsKey(key))
-            {
-                cache[key] = await base.GetPackageDependenciesAsync(package, targetFramework, cancellationToken).ConfigureAwait(false);
-            }
-
-            return (IEnumerable<PackageIdentity>)cache[key];
         }
 
-        private string BuildKey(string context, params object[] list)
+        public override async Task<PackageIdentity> GetLatestPackageAsync(
+            string packageId,
+            VersionRange versionRange,
+            CancellationToken cancellationToken)
+        {
+            var key = BuildKey(nameof(this.GetLatestPackageAsync), packageId, versionRange);
+
+            if (!this.cache.ContainsKey(key))
+            {
+                this.cache[key] = await base.GetLatestPackageAsync(packageId, versionRange, cancellationToken).ConfigureAwait(false);
+            }
+
+            return (PackageIdentity)this.cache[key];
+        }
+
+        public override async Task<IEnumerable<PackageIdentity>> GetPackageDependenciesAsync(
+            PackageIdentity package,
+            NuGetFramework targetFramework,
+            CancellationToken cancellationToken)
+        {
+            var key = BuildKey(nameof(this.GetPackageDependenciesAsync), package, targetFramework.GetShortFolderName());
+
+            if (!this.cache.ContainsKey(key))
+            {
+                this.cache[key] = await base.GetPackageDependenciesAsync(package, targetFramework, cancellationToken).ConfigureAwait(false);
+            }
+
+            return (IEnumerable<PackageIdentity>)this.cache[key];
+        }
+
+        private static string BuildKey(string context, params object[] list)
         {
             var key = context;
-            foreach(var item in list)
+            foreach (var item in list)
             {
                 key += "_" + (item?.ToString() ?? "null");
             }

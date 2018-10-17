@@ -1,4 +1,5 @@
-namespace JK.NuGetTools.Cli {
+namespace JK.NuGetTools.Cli
+{
     using System.ComponentModel.DataAnnotations;
     using NuGet.Frameworks;
 

@@ -20,7 +20,10 @@ namespace JK.NuGetTools.Cli
         private MetadataResource metadataResource;
         private PackageMetadataResource packageMetadataResource;
 
-        public NuGetRepository(string feedUrl) : this(feedUrl, new SourceCacheContext(), NullLogger.Instance) { }
+        public NuGetRepository(string feedUrl)
+            : this(feedUrl, new SourceCacheContext(), NullLogger.Instance)
+        {
+        }
 
         public NuGetRepository(string feedUrl, SourceCacheContext sourceCacheContext, ILogger log)
         {
@@ -35,14 +38,14 @@ namespace JK.NuGetTools.Cli
         {
             get
             {
-                lock(this)
+                lock (this)
                 {
-                    if (metadataResource == null)
+                    if (this.metadataResource == null)
                     {
-                        metadataResource = sourceRepository.GetResource<MetadataResource>();
+                        this.metadataResource = this.sourceRepository.GetResource<MetadataResource>();
                     }
 
-                    return metadataResource;
+                    return this.metadataResource;
                 }
             }
         }
@@ -51,30 +54,34 @@ namespace JK.NuGetTools.Cli
         {
             get
             {
-                lock(this)
+                lock (this)
                 {
-                    if (packageMetadataResource == null)
+                    if (this.packageMetadataResource == null)
                     {
-                        packageMetadataResource = sourceRepository.GetResource<PackageMetadataResource>();
+                        this.packageMetadataResource = this.sourceRepository.GetResource<PackageMetadataResource>();
                     }
 
-                    return packageMetadataResource;
+                    return this.packageMetadataResource;
                 }
             }
         }
 
-        public virtual async Task<PackageIdentity> GetLatestPackageAsync(string packageId
-                                                                        , VersionRange versionRange
-                                                                        , CancellationToken cancellationToken)
+        public virtual async Task<PackageIdentity> GetLatestPackageAsync(
+            string packageId,
+            VersionRange versionRange,
+            CancellationToken cancellationToken)
         {
-            if (string.IsNullOrWhiteSpace(packageId)) throw new ArgumentNullException(nameof(packageId));
+            if (string.IsNullOrWhiteSpace(packageId))
+            {
+                throw new ArgumentNullException(nameof(packageId));
+            }
 
             var packageVersions = await this.MetadataResource.GetVersions(packageId, true, true, this.sourceCacheContext, this.log, cancellationToken).ConfigureAwait(false);
 
             versionRange = new VersionRange(versionRange ?? VersionRange.All, new FloatRange(NuGetVersionFloatBehavior.Major));
 
             var packageVersion = versionRange.FindBestMatch(packageVersions);
-            
+
             if (packageVersion == null)
             {
                 throw new Exception($"Package \"{packageId}\" not found in repository {this.FeedUrl.ToString()}");
@@ -83,15 +90,19 @@ namespace JK.NuGetTools.Cli
             return new PackageIdentity(packageId, packageVersion);
         }
 
-        public virtual async Task<IEnumerable<PackageIdentity>> GetPackageDependenciesAsync(PackageIdentity package
-                                                                                           , NuGetFramework targetFramework
-                                                                                           , CancellationToken cancellationToken)
+        public virtual async Task<IEnumerable<PackageIdentity>> GetPackageDependenciesAsync(
+            PackageIdentity package,
+            NuGetFramework targetFramework,
+            CancellationToken cancellationToken)
         {
-            if (package == null) throw new ArgumentNullException(nameof(package));
+            if (package == null)
+            {
+                throw new ArgumentNullException(nameof(package));
+            }
 
             var packageMetadata = await this.PackageMetadataResource.GetMetadataAsync(package, this.sourceCacheContext, this.log, cancellationToken).ConfigureAwait(false);
 
-            if (!TryResolveDependencies(packageMetadata, targetFramework, out var packageDependencies, out var packageFramework))
+            if (!this.TryResolveDependencies(packageMetadata, targetFramework, out var packageDependencies, out var packageFramework))
             {
                 throw new Exception($"Package \"{packageMetadata.Identity.ToString()}\" is not compatible with {targetFramework.GetShortFolderName()}");
             }
@@ -99,45 +110,53 @@ namespace JK.NuGetTools.Cli
             return await Task.WhenAll(packageDependencies.Select(p => this.GetLatestPackageAsync(p.Id, p.VersionRange, cancellationToken))).ConfigureAwait(false);
         }
 
-
-        public virtual Task<PackageHierarchy> GetPackageHierarchyAsync(PackageIdentity package
-                                                                            , NuGetFramework targetFramework
-                                                                            , CancellationToken cancellationToken)
+        public virtual Task<PackageHierarchy> GetPackageHierarchyAsync(
+            PackageIdentity package,
+            NuGetFramework targetFramework,
+            CancellationToken cancellationToken)
         {
-            return GetPackageHierarchyAsync(package, targetFramework, string.Empty, cancellationToken);
+            return this.GetPackageHierarchyAsync(package, targetFramework, string.Empty, cancellationToken);
         }
 
-
-        protected virtual async Task<PackageHierarchy> GetPackageHierarchyAsync(PackageIdentity package
-                                                                               , NuGetFramework targetFramework
-                                                                               , string currentPath
-                                                                               , CancellationToken cancellationToken)
+        protected virtual async Task<PackageHierarchy> GetPackageHierarchyAsync(
+            PackageIdentity package,
+            NuGetFramework targetFramework,
+            string currentPath,
+            CancellationToken cancellationToken)
         {
-            if (package == null) throw new ArgumentNullException(nameof(package));
-            if (targetFramework == null) throw new ArgumentNullException(nameof(targetFramework));
-            
-            currentPath = (string.IsNullOrEmpty(currentPath) ? "" : currentPath + " => ") + package.ToString();
+            if (package == null)
+            {
+                throw new ArgumentNullException(nameof(package));
+            }
+
+            if (targetFramework == null)
+            {
+                throw new ArgumentNullException(nameof(targetFramework));
+            }
+
+            currentPath = (string.IsNullOrEmpty(currentPath) ? string.Empty : currentPath + " => ") + package.ToString();
 
             var dependencies = default(IEnumerable<PackageIdentity>);
 
             try
             {
-                dependencies = await GetPackageDependenciesAsync(package, targetFramework, cancellationToken).ConfigureAwait(false);
+                dependencies = await this.GetPackageDependenciesAsync(package, targetFramework, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 throw new Exception($"Error obtaining dependencies at {currentPath}: {ex.Message}", ex);
             }
 
-            var children = await Task.WhenAll(dependencies.Select(p => GetPackageHierarchyAsync(p, targetFramework, currentPath, cancellationToken))).ConfigureAwait(false);
+            var children = await Task.WhenAll(dependencies.Select(p => this.GetPackageHierarchyAsync(p, targetFramework, currentPath, cancellationToken))).ConfigureAwait(false);
 
             return new PackageHierarchy(package, children);
         }
 
-        private bool TryResolveDependencies(IPackageSearchMetadata packageMetadata
-                                           , NuGetFramework targetFramework
-                                           , out IEnumerable<PackageDependency> packageDependencies
-                                           , out NuGetFramework packageFramework)
+        private bool TryResolveDependencies(
+            IPackageSearchMetadata packageMetadata,
+            NuGetFramework targetFramework,
+            out IEnumerable<PackageDependency> packageDependencies,
+            out NuGetFramework packageFramework)
         {
             packageDependencies = null;
             packageFramework = null;
@@ -150,7 +169,6 @@ namespace JK.NuGetTools.Cli
             else
             {
                 var packageDependencyGroup = NuGetFrameworkUtility.GetNearest(packageMetadata.DependencySets, targetFramework);
-                
                 if (packageDependencyGroup == null)
                 {
                     return false;

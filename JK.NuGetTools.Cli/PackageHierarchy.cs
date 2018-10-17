@@ -7,7 +7,10 @@ namespace JK.NuGetTools.Cli
 
     internal class PackageHierarchy
     {
-        public PackageHierarchy(PackageIdentity identity) : this(identity, null) { }
+        public PackageHierarchy(PackageIdentity identity)
+            : this(identity, null)
+        {
+        }
 
         public PackageHierarchy(PackageIdentity identity, ICollection<PackageHierarchy> children)
         {
