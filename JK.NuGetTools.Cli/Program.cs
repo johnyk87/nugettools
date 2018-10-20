@@ -15,14 +15,10 @@
     public class Program
     {
         private const string DefaultFeedUrl = "https://api.nuget.org/v3/index.json";
-
+        private const string DefaultTargetFrameworkString = FrameworkConstants.SpecialIdentifiers.Any;
+        private const string DefaultDependencyDisplayModeString = "Tree";
         private const string DefaultDependencyExclusionFiltersString = "";
-
         private const string DefaultExpansionExclusionFiltersString = "^System|^Microsoft";
-
-        private const DependencyDisplayMode DefaultDependencyDisplayMode = DependencyDisplayMode.Tree;
-
-        private static readonly NuGetFramework DefaultTargetFramework = NuGetFramework.AnyFramework;
 
         private readonly IConsole console;
         private readonly CancellationTokenSource cancellationTokenSource;
@@ -52,16 +48,16 @@
         [Required]
         public string PackageId { get; }
 
-        [Option("-t|--target-framework", Description = "The target framework. Default: \"any\".")]
+        [Option("-s|--source-feed-url", Description = "The URL of the source feed. Default: \"" + DefaultFeedUrl + "\".")]
+        public string SourceFeedUrl { get; }
+
+        [Option("-t|--target-framework", Description = "The target framework. Default: \"" + DefaultTargetFrameworkString + "\".")]
         [SupportedNuGetFramework]
         public string TargetFramework { get; }
 
-        [Option("-d|--display-mode", Description = "The mode in which to display the dependencies. Default: \"" + "tree" + "\".")]
+        [Option("-d|--display-mode", Description = "The mode in which to display the dependencies. Default: \"" + DefaultDependencyDisplayModeString + "\".")]
         [SupportedEnumValue(typeof(DependencyDisplayMode))]
         public string DisplayMode { get; }
-
-        [Option("-s|--source-feed-url", Description = "The URL of the source feed. Default: \"" + DefaultFeedUrl + "\".")]
-        public string SourceFeedUrl { get; }
 
         [Option("-def|--dependency-exclusion-filter", Description = "The exclusion Regex filters to apply on the dependencies of each package. Packages matching the filter will not be listed as dependencies of other packages and won't not be expanded. Default: \"" + DefaultDependencyExclusionFiltersString + "\".")]
         public string[] DependencyExclusionFilters { get; }
@@ -97,9 +93,9 @@
 
         private async Task<int> OnExecuteAsync()
         {
-            var targetFramework = this.TargetFramework == null ? DefaultTargetFramework : NuGetFramework.Parse(this.TargetFramework);
             var sourceRepository = new CachedNuGetRepository(this.SourceFeedUrl ?? DefaultFeedUrl);
             var cancellationToken = this.cancellationTokenSource.Token;
+            var targetFramework = NuGetFramework.Parse(this.TargetFramework ?? DefaultTargetFrameworkString);
             var dependencyExclusionFilters = GetFilterList(this.DependencyExclusionFilters, DefaultDependencyExclusionFiltersString);
             var expansionExclusionFilters = GetFilterList(this.ExpansionExclusionFilters, DefaultExpansionExclusionFiltersString);
 
@@ -139,9 +135,7 @@
             IEnumerable<Regex> dependencyExclusionFilters,
             IEnumerable<Regex> expansionExclusionFilters)
         {
-            var displayMode = this.DisplayMode == null
-                ? DefaultDependencyDisplayMode
-                : Enum.Parse(typeof(DependencyDisplayMode), this.DisplayMode, true);
+            var displayMode = Enum.Parse(typeof(DependencyDisplayMode), this.DisplayMode ?? DefaultDependencyDisplayModeString, true);
 
             switch (displayMode)
             {
