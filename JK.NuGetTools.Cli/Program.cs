@@ -16,6 +16,8 @@
     {
         private const string DefaultFeedUrl = "https://api.nuget.org/v3/index.json";
 
+        private const DependencyDisplayMode DefaultDependencyDisplayMode = DependencyDisplayMode.Tree;
+
         private static readonly NuGetFramework DefaultTargetFramework = NuGetFramework.AnyFramework;
 
         private readonly IConsole console;
@@ -31,13 +33,23 @@
             UnknownError = -1,
         }
 
+        private enum DependencyDisplayMode
+        {
+            Tree = 0,
+            Graph = 1,
+        }
+
         [Argument(0, Description = "The package identifier")]
         [Required]
         public string PackageId { get; }
 
-        [Option("-t|--target-framework", Description = "The target framework. Default: any.")]
+        [Option("-t|--target-framework", Description = "The target framework. Default: \"any\".")]
         [SupportedNuGetFramework]
         public string TargetFramework { get; }
+
+        [Option("-d|--display-mode", Description = "The mode in which to display the dependencies. Default: \"" + "tree" + "\".")]
+        [SupportedEnumValue(typeof(DependencyDisplayMode))]
+        public string DisplayMode { get; }
 
         [Option("-s|--source-feed-url", Description = "The URL of the source feed. Default: \"" + DefaultFeedUrl + "\".")]
         public string SourceFeedUrl { get; }
@@ -74,12 +86,7 @@
                 exclusionFilters.Add(new Regex("^System"));
                 exclusionFilters.Add(new Regex("^Microsoft"));
 
-                // TODO: add a flag to control output mode
-#if true
-                this.PrintPackageHierarchyAsGraph(packageHierarchy, ref exclusionFilters);
-#else
-                this.PrintPackageHierarchyAsList(packageHierarchy, ref exclusionFilters);
-#endif
+                this.PrintPackageHierarchy(packageHierarchy, ref exclusionFilters);
 
                 return (int)ErrorCode.Success;
             }
@@ -88,6 +95,24 @@
                 this.console.Error.WriteLine($"Error: {ex.Message}. StackTrace: {ex.StackTrace}");
 
                 return (int)ErrorCode.UnknownError;
+            }
+        }
+
+        private void PrintPackageHierarchy(PackageHierarchy packageHierarchy, ref List<Regex> exclusionFilters)
+        {
+            var displayMode = this.DisplayMode == null
+                ? DefaultDependencyDisplayMode
+                : Enum.Parse(typeof(DependencyDisplayMode), this.DisplayMode, true);
+
+            switch (displayMode)
+            {
+                case DependencyDisplayMode.Graph:
+                    this.PrintPackageHierarchyAsGraph(packageHierarchy, ref exclusionFilters);
+                    break;
+                case DependencyDisplayMode.Tree:
+                default:
+                    this.PrintPackageHierarchyAsTree(packageHierarchy, ref exclusionFilters);
+                    break;
             }
         }
 
@@ -100,13 +125,13 @@
 
             this.console.WriteLine($"digraph \"{packageHierarchy.Identity.ToString()}\" {{");
 
-            this.PrintPackageHierarchyAsGraph(packageHierarchy, ref exclusionFilters, 1);
+            this.PrintPackageHierarchyChildrenAsGraph(packageHierarchy, ref exclusionFilters);
 
             this.console.WriteLine("}");
             this.console.WriteLine("The graph can be visualized with any graphviz based visualizer like the online tool http://viz-js.com/.");
         }
 
-        private void PrintPackageHierarchyAsGraph(PackageHierarchy packageHierarchy, ref List<Regex> exclusionFilters, int level)
+        private void PrintPackageHierarchyChildrenAsGraph(PackageHierarchy packageHierarchy, ref List<Regex> exclusionFilters)
         {
             foreach (var child in packageHierarchy.Children)
             {
@@ -119,11 +144,11 @@
 
                 exclusionFilters.Add(new Regex($"^{child.Identity.Id}$"));
 
-                this.PrintPackageHierarchyAsGraph(child, ref exclusionFilters, level + 1);
+                this.PrintPackageHierarchyChildrenAsGraph(child, ref exclusionFilters);
             }
         }
 
-        private void PrintPackageHierarchyAsList(PackageHierarchy packageHierarchy, ref List<Regex> exclusionFilters, int level = 0)
+        private void PrintPackageHierarchyAsTree(PackageHierarchy packageHierarchy, ref List<Regex> exclusionFilters, int level = 0)
         {
             if (exclusionFilters == null)
             {
@@ -139,7 +164,7 @@
 
             foreach (var child in packageHierarchy.Children)
             {
-                this.PrintPackageHierarchyAsList(child, ref exclusionFilters, level + 1);
+                this.PrintPackageHierarchyAsTree(child, ref exclusionFilters, level + 1);
             }
         }
     }
