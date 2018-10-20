@@ -35,6 +35,7 @@
         {
             Success = 0,
             UnknownError = -1,
+            OperationCanceled = -2,
         }
 
         private enum DependencyDisplayMode
@@ -78,14 +79,15 @@
         {
             var targetFramework = this.TargetFramework == null ? DefaultTargetFramework : NuGetFramework.Parse(this.TargetFramework);
             var sourceRepository = new CachedNuGetRepository(this.SourceFeedUrl ?? DefaultFeedUrl);
+            var cancellationToken = this.cancellationTokenSource.Token;
 
             try
             {
                 var package = await sourceRepository.GetLatestPackageAsync(
-                    this.PackageId, null, this.cancellationTokenSource.Token).ConfigureAwait(false);
+                    this.PackageId, null, cancellationToken).ConfigureAwait(false);
 
                 var packageHierarchy = await sourceRepository.GetPackageHierarchyAsync(
-                    package, targetFramework, this.cancellationTokenSource.Token).ConfigureAwait(false);
+                    package, targetFramework, cancellationToken).ConfigureAwait(false);
 
                 var exclusionFilters = new List<Regex>();
                 exclusionFilters.Add(new Regex("^System"));
@@ -95,9 +97,14 @@
 
                 return (int)ErrorCode.Success;
             }
+            catch (OperationCanceledException)
+            {
+                return (int)ErrorCode.OperationCanceled;
+            }
             catch (Exception ex)
             {
-                this.console.Error.WriteLine($"Error: {ex.Message}. StackTrace: {ex.StackTrace}");
+                this.console.Error.WriteLine($"{ex.GetType().Name}: {ex.Message}");
+                this.console.Error.WriteLine($"StackTrace:{Environment.NewLine}{ex.StackTrace}");
 
                 return (int)ErrorCode.UnknownError;
             }
@@ -105,7 +112,7 @@
 
         private void OnCancelKeyPress(object sender, ConsoleCancelEventArgs e)
         {
-            this.console.Error.WriteLine("Operation cancelled by user.");
+            this.console.Error.WriteLine("Operation cancellation requested.");
             this.cancellationTokenSource.Cancel();
         }
 
