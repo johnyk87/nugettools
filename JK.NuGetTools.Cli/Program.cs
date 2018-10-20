@@ -21,10 +21,14 @@
         private static readonly NuGetFramework DefaultTargetFramework = NuGetFramework.AnyFramework;
 
         private readonly IConsole console;
+        private readonly CancellationTokenSource cancellationTokenSource;
 
         public Program(IConsole console)
         {
             this.console = console;
+            this.cancellationTokenSource = new CancellationTokenSource();
+
+            this.console.CancelKeyPress += this.OnCancelKeyPress;
         }
 
         private enum ErrorCode
@@ -73,14 +77,15 @@
         private async Task<int> OnExecuteAsync()
         {
             var targetFramework = this.TargetFramework == null ? DefaultTargetFramework : NuGetFramework.Parse(this.TargetFramework);
-            var cancellationToken = CancellationToken.None;
             var sourceRepository = new CachedNuGetRepository(this.SourceFeedUrl ?? DefaultFeedUrl);
 
             try
             {
-                var package = await sourceRepository.GetLatestPackageAsync(this.PackageId, null, cancellationToken).ConfigureAwait(false);
+                var package = await sourceRepository.GetLatestPackageAsync(
+                    this.PackageId, null, this.cancellationTokenSource.Token).ConfigureAwait(false);
 
-                var packageHierarchy = await sourceRepository.GetPackageHierarchyAsync(package, targetFramework, cancellationToken).ConfigureAwait(false);
+                var packageHierarchy = await sourceRepository.GetPackageHierarchyAsync(
+                    package, targetFramework, this.cancellationTokenSource.Token).ConfigureAwait(false);
 
                 var exclusionFilters = new List<Regex>();
                 exclusionFilters.Add(new Regex("^System"));
@@ -96,6 +101,12 @@
 
                 return (int)ErrorCode.UnknownError;
             }
+        }
+
+        private void OnCancelKeyPress(object sender, ConsoleCancelEventArgs e)
+        {
+            this.console.Error.WriteLine("Operation cancelled by user.");
+            this.cancellationTokenSource.Cancel();
         }
 
         private void PrintPackageHierarchy(PackageHierarchy packageHierarchy, ref List<Regex> exclusionFilters)
