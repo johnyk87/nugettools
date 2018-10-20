@@ -164,7 +164,10 @@
 
             this.console.WriteLine($"digraph \"{packageHierarchy.Identity.ToString()}\" {{");
 
-            this.PrintPackageHierarchyChildrenAsGraph(packageHierarchy, dependencyExclusionFilters, expansionExclusionFilters, ref expandedPackages);
+            if (!expansionExclusionFilters.Any(f => f.IsMatch(packageHierarchy.Identity.Id)))
+            {
+                this.PrintPackageHierarchyChildrenAsGraph(packageHierarchy, dependencyExclusionFilters, expansionExclusionFilters, ref expandedPackages);
+            }
 
             this.console.WriteLine("}");
             this.console.WriteLine("# The graph is represented in DOT language and can be visualized with any graphviz based visualizer like the online tool http://viz-js.com/.");
@@ -185,12 +188,12 @@
 
                 this.console.WriteLine($"{Indent(1)}\"{packageHierarchy.Identity.ToString()}\" -> \"{child.Identity.ToString()}\"");
 
-                if (expansionExclusionFilters.Any(f => f.IsMatch(child.Identity.Id)))
+                if (expandedPackages.Contains(child.Identity.Id))
                 {
                     continue;
                 }
 
-                if (expandedPackages.Contains(child.Identity.Id))
+                if (expansionExclusionFilters.Any(f => f.IsMatch(child.Identity.Id)))
                 {
                     continue;
                 }
