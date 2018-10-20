@@ -16,6 +16,10 @@
     {
         private const string DefaultFeedUrl = "https://api.nuget.org/v3/index.json";
 
+        private const string DefaultDependencyExclusionFiltersString = "";
+
+        private const string DefaultExpansionExclusionFiltersString = "^System|^Microsoft";
+
         private const DependencyDisplayMode DefaultDependencyDisplayMode = DependencyDisplayMode.Tree;
 
         private static readonly NuGetFramework DefaultTargetFramework = NuGetFramework.AnyFramework;
@@ -59,6 +63,12 @@
         [Option("-s|--source-feed-url", Description = "The URL of the source feed. Default: \"" + DefaultFeedUrl + "\".")]
         public string SourceFeedUrl { get; }
 
+        [Option("-def|--dependency-exclusion-filter", Description = "The exclusion Regex filters to apply on the dependencies of each package. Packages matching the filter will not be listed as dependencies of other packages and won't not be expanded. Default: \"" + DefaultDependencyExclusionFiltersString + "\".")]
+        public string[] DependencyExclusionFilters { get; }
+
+        [Option("-eef|--expansion-exclusion-filter", Description = "The exclusion Regex filters to apply on the parent of a given dependency branch. Packages matching the filter may be listed but their dependencies will not be expanded. Default: \"" + DefaultExpansionExclusionFiltersString + "\".")]
+        public string[] ExpansionExclusionFilters { get; }
+
         public static Task<int> Main(string[] args) => CommandLineApplication.ExecuteAsync<Program>(args);
 
         private static string Indent(int level, string indentString = "  ")
@@ -75,11 +85,23 @@
             return indent;
         }
 
+        private static IEnumerable<string> GetOptionAsEnumerable(string[] filterValue, string defaultValueString)
+        {
+            return filterValue == null ? (defaultValueString ?? string.Empty).Split('|', StringSplitOptions.RemoveEmptyEntries) : filterValue;
+        }
+
+        private static IEnumerable<Regex> GetFilterList(string[] filterValue, string defaultValueString)
+        {
+            return GetOptionAsEnumerable(filterValue, defaultValueString).Select(i => new Regex(i));
+        }
+
         private async Task<int> OnExecuteAsync()
         {
             var targetFramework = this.TargetFramework == null ? DefaultTargetFramework : NuGetFramework.Parse(this.TargetFramework);
             var sourceRepository = new CachedNuGetRepository(this.SourceFeedUrl ?? DefaultFeedUrl);
             var cancellationToken = this.cancellationTokenSource.Token;
+            var dependencyExclusionFilters = GetFilterList(this.DependencyExclusionFilters, DefaultDependencyExclusionFiltersString);
+            var expansionExclusionFilters = GetFilterList(this.ExpansionExclusionFilters, DefaultExpansionExclusionFiltersString);
 
             try
             {
@@ -89,11 +111,7 @@
                 var packageHierarchy = await sourceRepository.GetPackageHierarchyAsync(
                     package, targetFramework, cancellationToken).ConfigureAwait(false);
 
-                var exclusionFilters = new List<Regex>();
-                exclusionFilters.Add(new Regex("^System"));
-                exclusionFilters.Add(new Regex("^Microsoft"));
-
-                this.PrintPackageHierarchy(packageHierarchy, ref exclusionFilters);
+                this.PrintPackageHierarchy(packageHierarchy, dependencyExclusionFilters, expansionExclusionFilters);
 
                 return (int)ErrorCode.Success;
             }
@@ -116,7 +134,10 @@
             this.cancellationTokenSource.Cancel();
         }
 
-        private void PrintPackageHierarchy(PackageHierarchy packageHierarchy, ref List<Regex> exclusionFilters)
+        private void PrintPackageHierarchy(
+            PackageHierarchy packageHierarchy,
+            IEnumerable<Regex> dependencyExclusionFilters,
+            IEnumerable<Regex> expansionExclusionFilters)
         {
             var displayMode = this.DisplayMode == null
                 ? DefaultDependencyDisplayMode
@@ -125,64 +146,82 @@
             switch (displayMode)
             {
                 case DependencyDisplayMode.Graph:
-                    this.PrintPackageHierarchyAsGraph(packageHierarchy, ref exclusionFilters);
+                    this.PrintPackageHierarchyAsGraph(packageHierarchy, dependencyExclusionFilters, expansionExclusionFilters);
                     break;
                 case DependencyDisplayMode.Tree:
                 default:
-                    this.PrintPackageHierarchyAsTree(packageHierarchy, ref exclusionFilters);
+                    this.PrintPackageHierarchyAsTree(packageHierarchy, dependencyExclusionFilters, expansionExclusionFilters);
                     break;
             }
         }
 
-        private void PrintPackageHierarchyAsGraph(PackageHierarchy packageHierarchy, ref List<Regex> exclusionFilters)
+        private void PrintPackageHierarchyAsGraph(
+            PackageHierarchy packageHierarchy,
+            IEnumerable<Regex> dependencyExclusionFilters,
+            IEnumerable<Regex> expansionExclusionFilters)
         {
-            if (exclusionFilters == null)
-            {
-                exclusionFilters = new List<Regex>();
-            }
+            var expandedPackages = new List<string>();
 
             this.console.WriteLine($"digraph \"{packageHierarchy.Identity.ToString()}\" {{");
 
-            this.PrintPackageHierarchyChildrenAsGraph(packageHierarchy, ref exclusionFilters);
+            this.PrintPackageHierarchyChildrenAsGraph(packageHierarchy, dependencyExclusionFilters, expansionExclusionFilters, ref expandedPackages);
 
             this.console.WriteLine("}");
-            this.console.WriteLine("The graph can be visualized with any graphviz based visualizer like the online tool http://viz-js.com/.");
+            this.console.WriteLine("# The graph is represented in DOT language and can be visualized with any graphviz based visualizer like the online tool http://viz-js.com/.");
         }
 
-        private void PrintPackageHierarchyChildrenAsGraph(PackageHierarchy packageHierarchy, ref List<Regex> exclusionFilters)
+        private void PrintPackageHierarchyChildrenAsGraph(
+            PackageHierarchy packageHierarchy,
+            IEnumerable<Regex> dependencyExclusionFilters,
+            IEnumerable<Regex> expansionExclusionFilters,
+            ref List<string> expandedPackages)
         {
             foreach (var child in packageHierarchy.Children)
             {
-                this.console.WriteLine($"{Indent(1)}\"{packageHierarchy.Identity.ToString()}\" -> \"{child.Identity.ToString()}\"");
-
-                if (exclusionFilters.Any(f => f.IsMatch(child.Identity.Id)))
+                if (dependencyExclusionFilters.Any(r => r.IsMatch(child.Identity.Id)))
                 {
                     continue;
                 }
 
-                exclusionFilters.Add(new Regex($"^{child.Identity.Id}$"));
+                this.console.WriteLine($"{Indent(1)}\"{packageHierarchy.Identity.ToString()}\" -> \"{child.Identity.ToString()}\"");
 
-                this.PrintPackageHierarchyChildrenAsGraph(child, ref exclusionFilters);
+                if (expansionExclusionFilters.Any(f => f.IsMatch(child.Identity.Id)))
+                {
+                    continue;
+                }
+
+                if (expandedPackages.Contains(child.Identity.Id))
+                {
+                    continue;
+                }
+
+                this.PrintPackageHierarchyChildrenAsGraph(child, dependencyExclusionFilters, expansionExclusionFilters, ref expandedPackages);
+
+                expandedPackages.Add(child.Identity.Id);
             }
         }
 
-        private void PrintPackageHierarchyAsTree(PackageHierarchy packageHierarchy, ref List<Regex> exclusionFilters, int level = 0)
+        private void PrintPackageHierarchyAsTree(
+            PackageHierarchy packageHierarchy,
+            IEnumerable<Regex> dependencyExclusionFilters,
+            IEnumerable<Regex> expansionExclusionFilters,
+            int level = 0)
         {
-            if (exclusionFilters == null)
-            {
-                exclusionFilters = new List<Regex>();
-            }
-
             this.console.WriteLine($"{Indent(level, "| ")}{packageHierarchy.Identity.ToString()}");
 
-            if (exclusionFilters.Any(f => f.IsMatch(packageHierarchy.Identity.Id)))
+            if (expansionExclusionFilters.Any(f => f.IsMatch(packageHierarchy.Identity.Id)))
             {
                 return;
             }
 
             foreach (var child in packageHierarchy.Children)
             {
-                this.PrintPackageHierarchyAsTree(child, ref exclusionFilters, level + 1);
+                if (dependencyExclusionFilters.Any(r => r.IsMatch(child.Identity.Id)))
+                {
+                    continue;
+                }
+
+                this.PrintPackageHierarchyAsTree(child, dependencyExclusionFilters, expansionExclusionFilters, level + 1);
             }
         }
     }
