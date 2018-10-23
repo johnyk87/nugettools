@@ -12,14 +12,14 @@ namespace JK.NuGetTools.Cli
         {
         }
 
-        internal PackageHierarchy(PackageIdentity identity, ICollection<PackageHierarchy> children)
+        internal PackageHierarchy(PackageIdentity identity, IEnumerable<PackageHierarchy> children)
         {
             this.Identity = identity;
-            this.Children = children ?? new List<PackageHierarchy>();
+            this.Children = children ?? Enumerable.Empty<PackageHierarchy>();
         }
 
-        public PackageIdentity Identity { get; set; }
+        public PackageIdentity Identity { get; }
 
-        public ICollection<PackageHierarchy> Children { get; set; }
+        public IEnumerable<PackageHierarchy> Children { get; }
     }
 }

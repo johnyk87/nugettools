@@ -12,14 +12,12 @@ namespace JK.NuGetTools.Cli
         private SourceCacheContext sourceCacheContext;
         private ILogger logger;
         private string feedUrl;
-        private bool useLocalCache;
 
-        internal NuGetRepositoryBuilder()
+        public NuGetRepositoryBuilder()
         {
             this.sourceCacheContext = new SourceCacheContext();
             this.logger = NullLogger.Instance;
             this.feedUrl = DefaultFeedUrl;
-            this.useLocalCache = true;
         }
 
         public NuGetRepositoryBuilder WithSourceCacheContext(SourceCacheContext sourceCacheContext)
@@ -45,24 +43,11 @@ namespace JK.NuGetTools.Cli
             return this;
         }
 
-        public NuGetRepositoryBuilder WithLocalCache(bool useLocalCache = true)
-        {
-            this.useLocalCache = useLocalCache;
-            return this;
-        }
-
         public NuGetRepository Build()
         {
             var sourceRepository = Repository.Factory.GetCoreV3(this.feedUrl);
 
-            if (this.useLocalCache)
-            {
-                return new CachedNuGetRepository(sourceRepository, this.sourceCacheContext, this.logger);
-            }
-            else
-            {
-                return new NuGetRepository(sourceRepository, this.sourceCacheContext, this.logger);
-            }
+            return new NuGetRepository(sourceRepository, this.sourceCacheContext, this.logger);
         }
     }
 }

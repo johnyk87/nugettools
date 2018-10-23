@@ -77,9 +77,9 @@
             var console = PhysicalConsole.Singleton;
             services.AddSingleton(console);
 
-            services.AddSingleton(new NuGetRepositoryBuilder().WithLocalCache());
+            services.AddSingleton<NuGetRepositoryBuilder>();
 
-            services.AddSingleton(new CancellationTokenSource());
+            services.AddSingleton<CancellationTokenSource>();
 
             var app = new CommandLineApplication<Program>(console);
 
