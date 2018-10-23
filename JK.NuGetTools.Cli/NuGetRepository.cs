@@ -13,7 +13,7 @@ namespace JK.NuGetTools.Cli
     using NuGet.Protocol.Core.Types;
     using NuGet.Versioning;
 
-    internal class NuGetRepository
+    public class NuGetRepository
     {
         private readonly SourceRepository sourceRepository;
         private readonly SourceCacheContext sourceCacheContext;
@@ -21,7 +21,7 @@ namespace JK.NuGetTools.Cli
         private MetadataResource metadataResource;
         private PackageMetadataResource packageMetadataResource;
 
-        public NuGetRepository(SourceRepository sourceRepository, SourceCacheContext sourceCacheContext, ILogger logger)
+        internal NuGetRepository(SourceRepository sourceRepository, SourceCacheContext sourceCacheContext, ILogger logger)
         {
             this.sourceRepository = sourceRepository;
             this.sourceCacheContext = sourceCacheContext;

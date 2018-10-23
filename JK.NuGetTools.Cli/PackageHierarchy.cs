@@ -5,14 +5,14 @@ namespace JK.NuGetTools.Cli
     using System.Linq;
     using NuGet.Packaging.Core;
 
-    internal class PackageHierarchy
+    public class PackageHierarchy
     {
-        public PackageHierarchy(PackageIdentity identity)
+        internal PackageHierarchy(PackageIdentity identity)
             : this(identity, null)
         {
         }
 
-        public PackageHierarchy(PackageIdentity identity, ICollection<PackageHierarchy> children)
+        internal PackageHierarchy(PackageIdentity identity, ICollection<PackageHierarchy> children)
         {
             this.Identity = identity;
             this.Children = children ?? new List<PackageHierarchy>();

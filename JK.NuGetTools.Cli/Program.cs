@@ -9,6 +9,7 @@
     using System.Threading;
     using System.Threading.Tasks;
     using McMaster.Extensions.CommandLineUtils;
+    using Microsoft.Extensions.DependencyInjection;
     using NuGet.Frameworks;
     using NuGet.Packaging.Core;
 
@@ -23,11 +24,14 @@
         private readonly NuGetRepositoryBuilder sourceRepositoryBuilder;
         private readonly CancellationTokenSource cancellationTokenSource;
 
-        public Program(IConsole console)
+        public Program(
+            IConsole console,
+            NuGetRepositoryBuilder sourceRepositoryBuilder,
+            CancellationTokenSource cancellationTokenSource)
         {
             this.console = console;
-            this.sourceRepositoryBuilder = new NuGetRepositoryBuilder().WithLocalCache();
-            this.cancellationTokenSource = new CancellationTokenSource();
+            this.sourceRepositoryBuilder = sourceRepositoryBuilder;
+            this.cancellationTokenSource = cancellationTokenSource;
 
             this.console.CancelKeyPress += this.OnCancelKeyPress;
         }
@@ -66,7 +70,25 @@
         [Option("-eef|--expansion-exclusion-filter", Description = "The exclusion Regex filters to apply on the parent of a given dependency branch. Packages matching the filter may be listed but their dependencies will not be expanded. Default: \"" + DefaultExpansionExclusionFiltersString + "\".")]
         public string[] ExpansionExclusionFilters { get; }
 
-        public static Task<int> Main(string[] args) => CommandLineApplication.ExecuteAsync<Program>(args);
+        public static int Main(string[] args)
+        {
+            var services = new ServiceCollection();
+
+            var console = PhysicalConsole.Singleton;
+            services.AddSingleton(console);
+
+            services.AddSingleton(new NuGetRepositoryBuilder().WithLocalCache());
+
+            services.AddSingleton(new CancellationTokenSource());
+
+            var app = new CommandLineApplication<Program>(console);
+
+            app.Conventions
+                .UseDefaultConventions()
+                .UseConstructorInjection(services.BuildServiceProvider());
+
+            return app.Execute(args);
+        }
 
         private static string Indent(int level, string indentString = "  ")
         {

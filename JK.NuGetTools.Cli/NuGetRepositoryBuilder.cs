@@ -5,7 +5,7 @@ namespace JK.NuGetTools.Cli
     using NuGet.Protocol;
     using NuGet.Protocol.Core.Types;
 
-    internal class NuGetRepositoryBuilder
+    public class NuGetRepositoryBuilder
     {
         public const string DefaultFeedUrl = "https://api.nuget.org/v3/index.json";
 
@@ -14,7 +14,7 @@ namespace JK.NuGetTools.Cli
         private string feedUrl;
         private bool useLocalCache;
 
-        public NuGetRepositoryBuilder()
+        internal NuGetRepositoryBuilder()
         {
             this.sourceCacheContext = new SourceCacheContext();
             this.logger = NullLogger.Instance;
