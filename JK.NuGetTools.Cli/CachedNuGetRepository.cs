@@ -3,6 +3,7 @@ namespace JK.NuGetTools.Cli
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Text.RegularExpressions;
     using System.Threading;
     using System.Threading.Tasks;
     using NuGet.Common;
@@ -44,13 +45,16 @@ namespace JK.NuGetTools.Cli
         public override async Task<IEnumerable<PackageIdentity>> GetPackageDependenciesAsync(
             PackageIdentity package,
             NuGetFramework targetFramework,
+            IEnumerable<Regex> dependencyExclusionFilters,
             CancellationToken cancellationToken)
         {
-            var key = BuildKey(nameof(this.GetPackageDependenciesAsync), package, targetFramework.GetShortFolderName());
+            var key = BuildKey(nameof(this.GetPackageDependenciesAsync), package, targetFramework, dependencyExclusionFilters);
 
             if (!this.cache.ContainsKey(key))
             {
-                this.cache[key] = await base.GetPackageDependenciesAsync(package, targetFramework, cancellationToken).ConfigureAwait(false);
+                this.cache[key] = await base
+                    .GetPackageDependenciesAsync(package, targetFramework, dependencyExclusionFilters, cancellationToken)
+                    .ConfigureAwait(false);
             }
 
             return (IEnumerable<PackageIdentity>)this.cache[key];
@@ -61,7 +65,7 @@ namespace JK.NuGetTools.Cli
             var key = context;
             foreach (var item in list)
             {
-                key += "_" + (item?.ToString() ?? "null");
+                key += "_" + (item?.GetHashCode().ToString() ?? "null");
             }
 
             return key;

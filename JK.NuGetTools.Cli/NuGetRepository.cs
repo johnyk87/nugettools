@@ -3,6 +3,7 @@ namespace JK.NuGetTools.Cli
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Text.RegularExpressions;
     using System.Threading;
     using System.Threading.Tasks;
     using NuGet.Common;
@@ -76,7 +77,9 @@ namespace JK.NuGetTools.Cli
                 throw new ArgumentNullException(nameof(packageId));
             }
 
-            var packageVersions = await this.MetadataResource.GetVersions(packageId, true, true, this.sourceCacheContext, this.log, cancellationToken).ConfigureAwait(false);
+            var packageVersions = await this.MetadataResource
+                .GetVersions(packageId, true, true, this.sourceCacheContext, this.log, cancellationToken)
+                .ConfigureAwait(false);
 
             versionRange = new VersionRange(versionRange ?? VersionRange.All, new FloatRange(NuGetVersionFloatBehavior.Major));
 
@@ -93,6 +96,7 @@ namespace JK.NuGetTools.Cli
         public virtual async Task<IEnumerable<PackageIdentity>> GetPackageDependenciesAsync(
             PackageIdentity package,
             NuGetFramework targetFramework,
+            IEnumerable<Regex> dependencyExclusionFilters,
             CancellationToken cancellationToken)
         {
             if (package == null)
@@ -100,27 +104,45 @@ namespace JK.NuGetTools.Cli
                 throw new ArgumentNullException(nameof(package));
             }
 
-            var packageMetadata = await this.PackageMetadataResource.GetMetadataAsync(package, this.sourceCacheContext, this.log, cancellationToken).ConfigureAwait(false);
+            dependencyExclusionFilters = dependencyExclusionFilters ?? Enumerable.Empty<Regex>();
+
+            var packageMetadata = await this.PackageMetadataResource
+                .GetMetadataAsync(package, this.sourceCacheContext, this.log, cancellationToken)
+                .ConfigureAwait(false);
 
             if (!this.TryResolveDependencies(packageMetadata, targetFramework, out var packageDependencies, out var packageFramework))
             {
                 throw new Exception($"Package \"{packageMetadata.Identity.ToString()}\" is not compatible with {targetFramework.GetShortFolderName()}");
             }
 
-            return await Task.WhenAll(packageDependencies.Select(p => this.GetLatestPackageAsync(p.Id, p.VersionRange, cancellationToken))).ConfigureAwait(false);
+            var packageDependenciesTasks = packageDependencies
+                .Where(d => !dependencyExclusionFilters.Any(f => f.IsMatch(d.Id)))
+                .Select(p => this.GetLatestPackageAsync(p.Id, p.VersionRange, cancellationToken));
+
+            return await Task.WhenAll(packageDependenciesTasks).ConfigureAwait(false);
         }
 
         public virtual Task<PackageHierarchy> GetPackageHierarchyAsync(
             PackageIdentity package,
             NuGetFramework targetFramework,
+            IEnumerable<Regex> dependencyExclusionFilters,
+            IEnumerable<Regex> expansionExclusionFilters,
             CancellationToken cancellationToken)
         {
-            return this.GetPackageHierarchyAsync(package, targetFramework, string.Empty, cancellationToken);
+            return this.GetPackageHierarchyAsync(
+                package,
+                targetFramework,
+                dependencyExclusionFilters,
+                expansionExclusionFilters,
+                string.Empty,
+                cancellationToken);
         }
 
         protected virtual async Task<PackageHierarchy> GetPackageHierarchyAsync(
             PackageIdentity package,
             NuGetFramework targetFramework,
+            IEnumerable<Regex> dependencyExclusionFilters,
+            IEnumerable<Regex> expansionExclusionFilters,
             string currentPath,
             CancellationToken cancellationToken)
         {
@@ -134,20 +156,38 @@ namespace JK.NuGetTools.Cli
                 throw new ArgumentNullException(nameof(targetFramework));
             }
 
+            expansionExclusionFilters = expansionExclusionFilters ?? Enumerable.Empty<Regex>();
+
             currentPath = (string.IsNullOrEmpty(currentPath) ? string.Empty : currentPath + " => ") + package.ToString();
 
             var dependencies = default(IEnumerable<PackageIdentity>);
 
             try
             {
-                dependencies = await this.GetPackageDependenciesAsync(package, targetFramework, cancellationToken).ConfigureAwait(false);
+                dependencies = await this.GetPackageDependenciesAsync(
+                    package,
+                    targetFramework,
+                    dependencyExclusionFilters,
+                    cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 throw new Exception($"Error obtaining dependencies at {currentPath}: {ex.Message}", ex);
             }
 
-            var children = await Task.WhenAll(dependencies.Select(p => this.GetPackageHierarchyAsync(p, targetFramework, currentPath, cancellationToken))).ConfigureAwait(false);
+            var dependencyHierarchiesTasks = dependencies
+                .Select(
+                    p => expansionExclusionFilters.Any(f => f.IsMatch(p.Id))
+                        ? Task.FromResult(new PackageHierarchy(p))
+                        : this.GetPackageHierarchyAsync(
+                            p,
+                            targetFramework,
+                            dependencyExclusionFilters,
+                            expansionExclusionFilters,
+                            currentPath,
+                            cancellationToken));
+
+            var children = await Task.WhenAll(dependencyHierarchiesTasks).ConfigureAwait(false);
 
             return new PackageHierarchy(package, children);
         }
