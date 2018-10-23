@@ -16,50 +16,20 @@ namespace JK.NuGetTools.Cli
     public class NuGetRepository
     {
         private readonly SourceRepository sourceRepository;
+        private readonly Uri feedUrl;
         private readonly SourceCacheContext sourceCacheContext;
         private readonly ILogger logger;
-        private MetadataResource metadataResource;
-        private PackageMetadataResource packageMetadataResource;
+        private readonly Lazy<Task<MetadataResource>> metadataResource;
+        private readonly Lazy<Task<PackageMetadataResource>> packageMetadataResource;
 
         internal NuGetRepository(SourceRepository sourceRepository, SourceCacheContext sourceCacheContext, ILogger logger)
         {
             this.sourceRepository = sourceRepository;
+            this.feedUrl = this.sourceRepository.PackageSource.SourceUri;
             this.sourceCacheContext = sourceCacheContext;
             this.logger = logger;
-        }
-
-        public Uri FeedUrl => this.sourceRepository.PackageSource.SourceUri;
-
-        protected MetadataResource MetadataResource
-        {
-            get
-            {
-                lock (this)
-                {
-                    if (this.metadataResource == null)
-                    {
-                        this.metadataResource = this.sourceRepository.GetResource<MetadataResource>();
-                    }
-
-                    return this.metadataResource;
-                }
-            }
-        }
-
-        protected PackageMetadataResource PackageMetadataResource
-        {
-            get
-            {
-                lock (this)
-                {
-                    if (this.packageMetadataResource == null)
-                    {
-                        this.packageMetadataResource = this.sourceRepository.GetResource<PackageMetadataResource>();
-                    }
-
-                    return this.packageMetadataResource;
-                }
-            }
+            this.metadataResource = new Lazy<Task<MetadataResource>>(this.CreateResourceAsync<MetadataResource>);
+            this.packageMetadataResource = new Lazy<Task<PackageMetadataResource>>(this.CreateResourceAsync<PackageMetadataResource>);
         }
 
         public virtual async Task<PackageIdentity> GetLatestPackageAsync(
@@ -72,7 +42,8 @@ namespace JK.NuGetTools.Cli
                 throw new ArgumentNullException(nameof(packageId));
             }
 
-            var packageVersions = await this.MetadataResource
+            var metadataResource = await this.metadataResource.Value.ConfigureAwait(false);
+            var packageVersions = await metadataResource
                 .GetVersions(packageId, true, true, this.sourceCacheContext, this.logger, cancellationToken)
                 .ConfigureAwait(false);
 
@@ -82,7 +53,7 @@ namespace JK.NuGetTools.Cli
 
             if (packageVersion == null)
             {
-                throw new Exception($"Package \"{packageId}\" not found in repository {this.FeedUrl.ToString()}");
+                throw new Exception($"Package \"{packageId}\" not found in repository {this.feedUrl.ToString()}");
             }
 
             return new PackageIdentity(packageId, packageVersion);
@@ -101,7 +72,8 @@ namespace JK.NuGetTools.Cli
 
             dependencyExclusionFilters = dependencyExclusionFilters ?? Enumerable.Empty<Regex>();
 
-            var packageMetadata = await this.PackageMetadataResource
+            var packageMetadataResource = await this.packageMetadataResource.Value.ConfigureAwait(false);
+            var packageMetadata = await packageMetadataResource
                 .GetMetadataAsync(package, this.sourceCacheContext, this.logger, cancellationToken)
                 .ConfigureAwait(false);
 
@@ -185,6 +157,12 @@ namespace JK.NuGetTools.Cli
             var children = await Task.WhenAll(dependencyHierarchiesTasks).ConfigureAwait(false);
 
             return new PackageHierarchy(package, children);
+        }
+
+        private Task<T> CreateResourceAsync<T>()
+            where T : class, INuGetResource
+        {
+            return this.sourceRepository.GetResourceAsync<T>();
         }
 
         private bool TryResolveDependencies(
