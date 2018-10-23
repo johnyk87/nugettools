@@ -111,6 +111,7 @@
         }
 
         private static T GetOptionAsEnumValue<T>(string optionValue, string defaultValueString, bool ignoreCase = true)
+            where T : Enum
         {
             return (T)Enum.Parse(typeof(T), optionValue ?? defaultValueString, ignoreCase);
         }
