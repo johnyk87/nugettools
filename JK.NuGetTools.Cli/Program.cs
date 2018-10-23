@@ -142,8 +142,7 @@
             }
             catch (Exception ex)
             {
-                this.console.Error.WriteLine($"{ex.GetType().Name}: {ex.Message}");
-                this.console.Error.WriteLine($"StackTrace:{Environment.NewLine}{ex.StackTrace}");
+                this.PrintException(ex);
 
                 return (int)ErrorCode.UnknownError;
             }
@@ -208,6 +207,18 @@
             {
                 this.PrintPackageHierarchyAsTree(child, level + 1);
             }
+        }
+
+        private void PrintException(Exception ex)
+        {
+            this.console.Error.WriteLine($"{ex.GetType().Name}: {ex.Message}");
+
+            foreach (var dataKey in ex.Data.Keys)
+            {
+                this.console.Error.WriteLine($"{dataKey}: {ex.Data[dataKey]}");
+            }
+
+            this.console.Error.WriteLine($"StackTrace:{Environment.NewLine}{ex.StackTrace}");
         }
     }
 }

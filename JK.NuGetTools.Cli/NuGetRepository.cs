@@ -7,6 +7,7 @@ namespace JK.NuGetTools.Cli
     using System.Text.RegularExpressions;
     using System.Threading;
     using System.Threading.Tasks;
+    using JK.NuGetTools.Cli.Exceptions;
     using NuGet.Common;
     using NuGet.Frameworks;
     using NuGet.Packaging.Core;
@@ -56,11 +57,11 @@ namespace JK.NuGetTools.Cli
             var packageVersions = await this.GetPackageVersionsAsync(packageId, cancellationToken).ConfigureAwait(false);
             if (!packageVersions.Any())
             {
-                throw new Exception($"Package \"{packageId}\" not found in repository {this.feedUrl.ToString()}");
+                throw new PackageNotFoundException($"Package \"{packageId}\" not found in repository {this.feedUrl.ToString()}");
             }
 
             var packageVersion = versionRange.FindBestMatch(packageVersions) ??
-                throw new Exception($"Package \"{packageId}\" has no versions compatible with range \"{versionRange.ToString()}\".");
+                throw new PackageVersionNotFoundException($"Package \"{packageId}\" has no versions compatible with range \"{versionRange.ToString()}\".");
 
             return new PackageIdentity(packageId, packageVersion);
         }
@@ -174,7 +175,9 @@ namespace JK.NuGetTools.Cli
             }
             catch (Exception ex)
             {
-                throw new Exception($"Error obtaining dependencies at {currentPath}: {ex.Message}", ex);
+                ex.Data["Path"] = currentPath;
+
+                throw;
             }
 
             var dependencyHierarchiesTasks = dependencies
@@ -235,7 +238,7 @@ namespace JK.NuGetTools.Cli
                 var packageDependencyGroup = NuGetFrameworkUtility.GetNearest(packageMetadata.DependencySets, targetFramework);
                 if (packageDependencyGroup == null)
                 {
-                    throw new Exception($"Package \"{packageMetadata.Identity.ToString()}\" is not compatible with {targetFramework.GetShortFolderName()}");
+                    throw new IncompatibleFrameworkException($"Package \"{packageMetadata.Identity.ToString()}\" is not compatible with {targetFramework.GetShortFolderName()}");
                 }
 
                 return packageDependencyGroup.Packages;
