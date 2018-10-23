@@ -134,7 +134,7 @@ namespace JK.NuGetTools.Cli
 
         private static string ConcatenatePath(string existingPath, string currentLocation)
         {
-            return (string.IsNullOrEmpty(existingPath) ? string.Empty : existingPath + " => ") + currentLocation;
+            return string.IsNullOrEmpty(existingPath) ? currentLocation : string.Join(" => ", existingPath, currentLocation);
         }
 
         private static string BuildCacheKey(params object[] list)
