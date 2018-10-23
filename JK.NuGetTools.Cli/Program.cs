@@ -8,6 +8,7 @@
     using System.Text.RegularExpressions;
     using System.Threading;
     using System.Threading.Tasks;
+    using JK.NuGetTools.Cli.Writers;
     using McMaster.Extensions.CommandLineUtils;
     using Microsoft.Extensions.DependencyInjection;
     using NuGet.Frameworks;
@@ -16,22 +17,25 @@
     public class Program
     {
         private const string DefaultTargetFrameworkString = FrameworkConstants.SpecialIdentifiers.Any;
-        private const string DefaultDependencyDisplayModeString = "Tree";
+        private const string DefaultHierarchyWriterTypeString = "Tree";
         private const string DefaultDependencyExclusionFiltersString = "";
         private const string DefaultExpansionExclusionFiltersString = "^System|^Microsoft";
 
         private readonly IConsole console;
         private readonly NuGetRepositoryBuilder sourceRepositoryBuilder;
         private readonly CancellationTokenSource cancellationTokenSource;
+        private readonly TextHierarchyWriterFactory hierarchyWriterFactory;
 
         public Program(
             IConsole console,
             NuGetRepositoryBuilder sourceRepositoryBuilder,
-            CancellationTokenSource cancellationTokenSource)
+            CancellationTokenSource cancellationTokenSource,
+            TextHierarchyWriterFactory hierarchyWriterFactory)
         {
             this.console = console;
             this.sourceRepositoryBuilder = sourceRepositoryBuilder;
             this.cancellationTokenSource = cancellationTokenSource;
+            this.hierarchyWriterFactory = hierarchyWriterFactory;
 
             this.console.CancelKeyPress += this.OnCancelKeyPress;
         }
@@ -41,12 +45,6 @@
             Success = 0,
             UnknownError = -1,
             OperationCanceled = -2,
-        }
-
-        private enum DependencyDisplayMode
-        {
-            Tree = 0,
-            Graph = 1,
         }
 
         [Argument(0, Description = "The package identifier")]
@@ -60,9 +58,9 @@
         [SupportedNuGetFramework]
         public string TargetFramework { get; }
 
-        [Option("-d|--display-mode", Description = "The mode in which to display the dependencies. Default: \"" + DefaultDependencyDisplayModeString + "\".")]
-        [SupportedEnumValue(typeof(DependencyDisplayMode))]
-        public string DisplayMode { get; }
+        [Option("-wt|--writer-type", Description = "The type of writer to use to print the dependencies. Default: \"" + DefaultHierarchyWriterTypeString + "\".")]
+        [SupportedEnumValue(typeof(TextHierarchyWriterFactory.WriterType))]
+        public string WriterType { get; }
 
         [Option("-def|--dependency-exclusion-filter", Description = "The exclusion Regex filters to apply on the dependencies of each package. Packages matching the filter will not be listed as dependencies of other packages and won't not be expanded. Default: \"" + DefaultDependencyExclusionFiltersString + "\".")]
         public string[] DependencyExclusionFilters { get; }
@@ -76,10 +74,13 @@
 
             var console = PhysicalConsole.Singleton;
             services.AddSingleton(console);
+            services.AddSingleton(console.Out);
 
             services.AddSingleton<NuGetRepositoryBuilder>();
 
             services.AddSingleton<CancellationTokenSource>();
+
+            services.AddSingleton<TextHierarchyWriterFactory>();
 
             var app = new CommandLineApplication<Program>(console);
 
@@ -109,6 +110,11 @@
             return filterValue == null ? (defaultValueString ?? string.Empty).Split('|', StringSplitOptions.RemoveEmptyEntries) : filterValue;
         }
 
+        private static T GetOptionAsEnumValue<T>(string optionValue, string defaultValueString, bool ignoreCase = true)
+        {
+            return (T)Enum.Parse(typeof(T), optionValue ?? defaultValueString, ignoreCase);
+        }
+
         private static IEnumerable<Regex> GetFilterList(string[] filterValue, string defaultValueString)
         {
             return GetOptionAsEnumerable(filterValue, defaultValueString).Select(i => new Regex(i));
@@ -132,7 +138,7 @@
                 var packageHierarchy = await sourceRepository.GetPackageHierarchyAsync(
                     package, targetFramework, dependencyExclusionFilters, expansionExclusionFilters, cancellationToken).ConfigureAwait(false);
 
-                this.PrintHierarchy(packageHierarchy);
+                await this.WriteHierarchyAsync(packageHierarchy).ConfigureAwait(false);
 
                 return (int)ErrorCode.Success;
             }
@@ -142,7 +148,7 @@
             }
             catch (Exception ex)
             {
-                this.PrintException(ex);
+                await this.WriteExceptionAsync(ex).ConfigureAwait(false);
 
                 return (int)ErrorCode.UnknownError;
             }
@@ -154,73 +160,25 @@
             this.cancellationTokenSource.Cancel();
         }
 
-        private void PrintHierarchy(IHierarchy hierarchy)
+        private Task WriteHierarchyAsync(IHierarchy hierarchy)
         {
-            var displayMode = Enum.Parse(typeof(DependencyDisplayMode), this.DisplayMode ?? DefaultDependencyDisplayModeString, true);
+            var writerType = GetOptionAsEnumValue<TextHierarchyWriterFactory.WriterType>(this.WriterType, DefaultHierarchyWriterTypeString);
 
-            switch (displayMode)
-            {
-                case DependencyDisplayMode.Graph:
-                    this.PrintHierarchyAsGraph(hierarchy);
-                    break;
-                case DependencyDisplayMode.Tree:
-                default:
-                    this.PrintHierarchyAsTree(hierarchy);
-                    break;
-            }
+            var hierarchyWriter = this.hierarchyWriterFactory.Create(writerType);
+
+            return hierarchyWriter.WriteAsync(hierarchy);
         }
 
-        private void PrintHierarchyAsGraph(IHierarchy hierarchy)
+        private async Task WriteExceptionAsync(Exception ex)
         {
-            var expandedPackages = new List<string>();
-
-            this.console.WriteLine($"digraph \"{hierarchy.Value.ToString()}\" {{");
-
-            this.PrintHierarchyChildrenAsGraph(hierarchy, ref expandedPackages);
-
-            this.console.WriteLine("}");
-            this.console.WriteLine("# The graph is represented in DOT language and can be visualized with any graphviz based visualizer like the online tool http://viz-js.com/.");
-        }
-
-        private void PrintHierarchyChildrenAsGraph(IHierarchy hierarchy, ref List<string> expandedPackages)
-        {
-            foreach (var child in hierarchy.Children)
-            {
-                var childDescription = child.Value.ToString();
-
-                this.console.WriteLine($"{Indent(1)}\"{hierarchy.Value.ToString()}\" -> \"{childDescription}\"");
-
-                if (expandedPackages.Contains(childDescription))
-                {
-                    continue;
-                }
-
-                this.PrintHierarchyChildrenAsGraph(child, ref expandedPackages);
-
-                expandedPackages.Add(childDescription);
-            }
-        }
-
-        private void PrintHierarchyAsTree(IHierarchy hierarchy, int level = 0)
-        {
-            this.console.WriteLine($"{Indent(level, "| ")}{hierarchy.Value.ToString()}");
-
-            foreach (var child in hierarchy.Children)
-            {
-                this.PrintHierarchyAsTree(child, level + 1);
-            }
-        }
-
-        private void PrintException(Exception ex)
-        {
-            this.console.Error.WriteLine($"{ex.GetType().Name}: {ex.Message}");
+            await this.console.Error.WriteLineAsync($"{ex.GetType().Name}: {ex.Message}").ConfigureAwait(false);
 
             foreach (var dataKey in ex.Data.Keys)
             {
-                this.console.Error.WriteLine($"{dataKey}: {ex.Data[dataKey]}");
+                await this.console.Error.WriteLineAsync($"{dataKey}: {ex.Data[dataKey]}").ConfigureAwait(false);
             }
 
-            this.console.Error.WriteLine($"StackTrace:{Environment.NewLine}{ex.StackTrace}");
+            await this.console.Error.WriteLineAsync($"StackTrace:{Environment.NewLine}{ex.StackTrace}").ConfigureAwait(false);
         }
     }
 }
