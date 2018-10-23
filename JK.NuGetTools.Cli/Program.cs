@@ -132,7 +132,7 @@
                 var packageHierarchy = await sourceRepository.GetPackageHierarchyAsync(
                     package, targetFramework, dependencyExclusionFilters, expansionExclusionFilters, cancellationToken).ConfigureAwait(false);
 
-                this.PrintPackageHierarchy(packageHierarchy);
+                this.PrintHierarchy(packageHierarchy);
 
                 return (int)ErrorCode.Success;
             }
@@ -154,58 +154,60 @@
             this.cancellationTokenSource.Cancel();
         }
 
-        private void PrintPackageHierarchy(PackageHierarchy packageHierarchy)
+        private void PrintHierarchy(IHierarchy hierarchy)
         {
             var displayMode = Enum.Parse(typeof(DependencyDisplayMode), this.DisplayMode ?? DefaultDependencyDisplayModeString, true);
 
             switch (displayMode)
             {
                 case DependencyDisplayMode.Graph:
-                    this.PrintPackageHierarchyAsGraph(packageHierarchy);
+                    this.PrintHierarchyAsGraph(hierarchy);
                     break;
                 case DependencyDisplayMode.Tree:
                 default:
-                    this.PrintPackageHierarchyAsTree(packageHierarchy);
+                    this.PrintHierarchyAsTree(hierarchy);
                     break;
             }
         }
 
-        private void PrintPackageHierarchyAsGraph(PackageHierarchy packageHierarchy)
+        private void PrintHierarchyAsGraph(IHierarchy hierarchy)
         {
             var expandedPackages = new List<string>();
 
-            this.console.WriteLine($"digraph \"{packageHierarchy.Identity.ToString()}\" {{");
+            this.console.WriteLine($"digraph \"{hierarchy.Value.ToString()}\" {{");
 
-            this.PrintPackageHierarchyChildrenAsGraph(packageHierarchy, ref expandedPackages);
+            this.PrintHierarchyChildrenAsGraph(hierarchy, ref expandedPackages);
 
             this.console.WriteLine("}");
             this.console.WriteLine("# The graph is represented in DOT language and can be visualized with any graphviz based visualizer like the online tool http://viz-js.com/.");
         }
 
-        private void PrintPackageHierarchyChildrenAsGraph(PackageHierarchy packageHierarchy, ref List<string> expandedPackages)
+        private void PrintHierarchyChildrenAsGraph(IHierarchy hierarchy, ref List<string> expandedPackages)
         {
-            foreach (var child in packageHierarchy.Children)
+            foreach (var child in hierarchy.Children)
             {
-                this.console.WriteLine($"{Indent(1)}\"{packageHierarchy.Identity.ToString()}\" -> \"{child.Identity.ToString()}\"");
+                var childDescription = child.Value.ToString();
 
-                if (expandedPackages.Contains(child.Identity.Id))
+                this.console.WriteLine($"{Indent(1)}\"{hierarchy.Value.ToString()}\" -> \"{childDescription}\"");
+
+                if (expandedPackages.Contains(childDescription))
                 {
                     continue;
                 }
 
-                this.PrintPackageHierarchyChildrenAsGraph(child, ref expandedPackages);
+                this.PrintHierarchyChildrenAsGraph(child, ref expandedPackages);
 
-                expandedPackages.Add(child.Identity.Id);
+                expandedPackages.Add(childDescription);
             }
         }
 
-        private void PrintPackageHierarchyAsTree(PackageHierarchy packageHierarchy, int level = 0)
+        private void PrintHierarchyAsTree(IHierarchy hierarchy, int level = 0)
         {
-            this.console.WriteLine($"{Indent(level, "| ")}{packageHierarchy.Identity.ToString()}");
+            this.console.WriteLine($"{Indent(level, "| ")}{hierarchy.Value.ToString()}");
 
-            foreach (var child in packageHierarchy.Children)
+            foreach (var child in hierarchy.Children)
             {
-                this.PrintPackageHierarchyAsTree(child, level + 1);
+                this.PrintHierarchyAsTree(child, level + 1);
             }
         }
 
