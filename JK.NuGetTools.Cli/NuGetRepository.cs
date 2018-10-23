@@ -16,21 +16,16 @@ namespace JK.NuGetTools.Cli
     internal class NuGetRepository
     {
         private readonly SourceRepository sourceRepository;
-        private readonly ILogger log;
         private readonly SourceCacheContext sourceCacheContext;
+        private readonly ILogger logger;
         private MetadataResource metadataResource;
         private PackageMetadataResource packageMetadataResource;
 
-        public NuGetRepository(string feedUrl)
-            : this(feedUrl, new SourceCacheContext(), NullLogger.Instance)
+        public NuGetRepository(SourceRepository sourceRepository, SourceCacheContext sourceCacheContext, ILogger logger)
         {
-        }
-
-        public NuGetRepository(string feedUrl, SourceCacheContext sourceCacheContext, ILogger log)
-        {
-            this.sourceRepository = Repository.Factory.GetCoreV3(feedUrl);
-            this.log = log;
+            this.sourceRepository = sourceRepository;
             this.sourceCacheContext = sourceCacheContext;
+            this.logger = logger;
         }
 
         public Uri FeedUrl => this.sourceRepository.PackageSource.SourceUri;
@@ -78,7 +73,7 @@ namespace JK.NuGetTools.Cli
             }
 
             var packageVersions = await this.MetadataResource
-                .GetVersions(packageId, true, true, this.sourceCacheContext, this.log, cancellationToken)
+                .GetVersions(packageId, true, true, this.sourceCacheContext, this.logger, cancellationToken)
                 .ConfigureAwait(false);
 
             versionRange = new VersionRange(versionRange ?? VersionRange.All, new FloatRange(NuGetVersionFloatBehavior.Major));
@@ -107,7 +102,7 @@ namespace JK.NuGetTools.Cli
             dependencyExclusionFilters = dependencyExclusionFilters ?? Enumerable.Empty<Regex>();
 
             var packageMetadata = await this.PackageMetadataResource
-                .GetMetadataAsync(package, this.sourceCacheContext, this.log, cancellationToken)
+                .GetMetadataAsync(package, this.sourceCacheContext, this.logger, cancellationToken)
                 .ConfigureAwait(false);
 
             if (!this.TryResolveDependencies(packageMetadata, targetFramework, out var packageDependencies, out var packageFramework))

@@ -17,13 +17,8 @@ namespace JK.NuGetTools.Cli
     {
         private readonly Dictionary<string, object> cache = new Dictionary<string, object>();
 
-        public CachedNuGetRepository(string feedUrl)
-            : base(feedUrl)
-        {
-        }
-
-        public CachedNuGetRepository(string feedUrl, SourceCacheContext sourceCacheContext, ILogger log)
-            : base(feedUrl, sourceCacheContext, log)
+        public CachedNuGetRepository(SourceRepository sourceRepository, SourceCacheContext sourceCacheContext, ILogger log)
+            : base(sourceRepository, sourceCacheContext, log)
         {
         }
 

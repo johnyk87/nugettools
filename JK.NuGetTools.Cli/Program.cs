@@ -14,18 +14,19 @@
 
     public class Program
     {
-        private const string DefaultFeedUrl = "https://api.nuget.org/v3/index.json";
         private const string DefaultTargetFrameworkString = FrameworkConstants.SpecialIdentifiers.Any;
         private const string DefaultDependencyDisplayModeString = "Tree";
         private const string DefaultDependencyExclusionFiltersString = "";
         private const string DefaultExpansionExclusionFiltersString = "^System|^Microsoft";
 
         private readonly IConsole console;
+        private readonly NuGetRepositoryBuilder sourceRepositoryBuilder;
         private readonly CancellationTokenSource cancellationTokenSource;
 
         public Program(IConsole console)
         {
             this.console = console;
+            this.sourceRepositoryBuilder = new NuGetRepositoryBuilder().WithLocalCache();
             this.cancellationTokenSource = new CancellationTokenSource();
 
             this.console.CancelKeyPress += this.OnCancelKeyPress;
@@ -48,7 +49,7 @@
         [Required]
         public string PackageId { get; }
 
-        [Option("-s|--source-feed-url", Description = "The URL of the source feed. Default: \"" + DefaultFeedUrl + "\".")]
+        [Option("-s|--source-feed-url", Description = "The URL of the source feed. Default: \"" + NuGetRepositoryBuilder.DefaultFeedUrl + "\".")]
         public string SourceFeedUrl { get; }
 
         [Option("-t|--target-framework", Description = "The target framework. Default: \"" + DefaultTargetFrameworkString + "\".")]
@@ -93,7 +94,9 @@
 
         private async Task<int> OnExecuteAsync()
         {
-            var sourceRepository = new CachedNuGetRepository(this.SourceFeedUrl ?? DefaultFeedUrl);
+            var sourceRepository = this.sourceRepositoryBuilder
+                .WithFeedUrl(this.SourceFeedUrl ?? NuGetRepositoryBuilder.DefaultFeedUrl)
+                .Build();
             var cancellationToken = this.cancellationTokenSource.Token;
             var targetFramework = NuGetFramework.Parse(this.TargetFramework ?? DefaultTargetFrameworkString);
             var dependencyExclusionFilters = GetFilterList(this.DependencyExclusionFilters, DefaultDependencyExclusionFiltersString);
