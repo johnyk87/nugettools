@@ -8,6 +8,7 @@
     using System.Text.RegularExpressions;
     using System.Threading;
     using System.Threading.Tasks;
+    using JK.NuGetTools.Cli.Utils;
     using JK.NuGetTools.Cli.Writers;
     using McMaster.Extensions.CommandLineUtils;
     using Microsoft.Extensions.DependencyInjection;
@@ -98,22 +99,6 @@
             return services.BuildServiceProvider();
         }
 
-        private static IEnumerable<string> GetOptionAsEnumerable(string[] filterValue, string defaultValueString)
-        {
-            return filterValue == null ? (defaultValueString ?? string.Empty).Split('|', StringSplitOptions.RemoveEmptyEntries) : filterValue;
-        }
-
-        private static T GetOptionAsEnumValue<T>(string optionValue, string defaultValueString, bool ignoreCase = true)
-            where T : Enum
-        {
-            return (T)Enum.Parse(typeof(T), optionValue ?? defaultValueString, ignoreCase);
-        }
-
-        private static IEnumerable<Regex> GetFilterList(string[] filterValue, string defaultValueString)
-        {
-            return GetOptionAsEnumerable(filterValue, defaultValueString).Select(i => new Regex(i));
-        }
-
         private async Task<int> OnExecuteAsync()
         {
             var sourceRepository = this.sourceRepositoryBuilder
@@ -121,8 +106,8 @@
                 .Build();
             var cancellationToken = this.cancellationTokenSource.Token;
             var targetFramework = NuGetFramework.Parse(this.TargetFramework ?? DefaultTargetFrameworkString);
-            var dependencyExclusionFilters = GetFilterList(this.DependencyExclusionFilters, DefaultDependencyExclusionFiltersString);
-            var expansionExclusionFilters = GetFilterList(this.ExpansionExclusionFilters, DefaultExpansionExclusionFiltersString);
+            var dependencyExclusionFilters = ConsoleUtils.ToRegexEnumerable(this.DependencyExclusionFilters, DefaultDependencyExclusionFiltersString);
+            var expansionExclusionFilters = ConsoleUtils.ToRegexEnumerable(this.ExpansionExclusionFilters, DefaultExpansionExclusionFiltersString);
 
             try
             {
@@ -156,7 +141,7 @@
 
         private Task WriteHierarchyAsync(IHierarchy hierarchy)
         {
-            var writerType = GetOptionAsEnumValue<TextHierarchyWriterFactory.WriterType>(this.WriterType, DefaultHierarchyWriterTypeString);
+            var writerType = ConsoleUtils.ToEnum<TextHierarchyWriterFactory.WriterType>(this.WriterType, DefaultHierarchyWriterTypeString);
 
             var hierarchyWriter = this.hierarchyWriterFactory.Create(writerType);
 
