@@ -70,6 +70,19 @@
 
         public static int Main(string[] args)
         {
+            var serviceProvider = BuildServiceProvider();
+
+            var app = new CommandLineApplication<Program>(serviceProvider.GetRequiredService<IConsole>());
+
+            app.Conventions
+                .UseDefaultConventions()
+                .UseConstructorInjection(serviceProvider);
+
+            return app.Execute(args);
+        }
+
+        private static IServiceProvider BuildServiceProvider()
+        {
             var services = new ServiceCollection();
 
             var console = PhysicalConsole.Singleton;
@@ -82,13 +95,7 @@
 
             services.AddSingleton<TextHierarchyWriterFactory>();
 
-            var app = new CommandLineApplication<Program>(console);
-
-            app.Conventions
-                .UseDefaultConventions()
-                .UseConstructorInjection(services.BuildServiceProvider());
-
-            return app.Execute(args);
+            return services.BuildServiceProvider();
         }
 
         private static IEnumerable<string> GetOptionAsEnumerable(string[] filterValue, string defaultValueString)
