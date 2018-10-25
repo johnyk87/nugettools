@@ -20,7 +20,7 @@
         private const string DefaultTargetFrameworkString = FrameworkConstants.SpecialIdentifiers.Any;
         private const string DefaultHierarchyWriterTypeString = nameof(TextHierarchyWriterFactory.WriterType.Tree);
         private const string DefaultDependencyExclusionFiltersString = "";
-        private const string DefaultExpansionExclusionFiltersString = "^System|^Microsoft";
+        private const string DefaultExpansionExclusionFiltersString = "";
 
         private readonly IConsole console;
         private readonly NuGetRepositoryBuilder sourceRepositoryBuilder;

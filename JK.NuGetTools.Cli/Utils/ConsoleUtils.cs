@@ -9,7 +9,9 @@ namespace JK.NuGetTools.Cli.Utils
     {
         public static IEnumerable<string> ToEnumerable(string[] providedValue, string defaultValue)
         {
-            return providedValue == null ? (defaultValue ?? string.Empty).Split('|', StringSplitOptions.RemoveEmptyEntries) : providedValue;
+            return providedValue == null
+                ? (defaultValue ?? string.Empty).Split('|', StringSplitOptions.RemoveEmptyEntries)
+                : providedValue;
         }
 
         public static T ToEnum<T>(string providedValue, string defaultValue, bool ignoreCase = true)
