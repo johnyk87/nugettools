@@ -91,20 +91,6 @@
             return app.Execute(args);
         }
 
-        private static string Indent(int level, string indentString = "  ")
-        {
-            var indent = string.Empty;
-
-            while (level > 0)
-            {
-                indent += indentString;
-
-                level--;
-            }
-
-            return indent;
-        }
-
         private static IEnumerable<string> GetOptionAsEnumerable(string[] filterValue, string defaultValueString)
         {
             return filterValue == null ? (defaultValueString ?? string.Empty).Split('|', StringSplitOptions.RemoveEmptyEntries) : filterValue;
