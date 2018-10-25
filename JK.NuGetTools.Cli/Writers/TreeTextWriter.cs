@@ -2,6 +2,7 @@ namespace JK.NuGetTools.Cli.Writers
 {
     using System.Collections.Generic;
     using System.IO;
+    using System.Text;
     using System.Threading.Tasks;
 
     public class TreeTextWriter : IHierarchyWriter
@@ -20,16 +21,16 @@ namespace JK.NuGetTools.Cli.Writers
 
         private static string Indent(int level, string indentString)
         {
-            var indent = string.Empty;
+            var stringBuilder = new StringBuilder();
 
             while (level > 0)
             {
-                indent += indentString;
+                stringBuilder.Append(indentString);
 
                 level--;
             }
 
-            return indent;
+            return stringBuilder.ToString();
         }
 
         private async Task WriteAsync(IHierarchy hierarchy, int level)

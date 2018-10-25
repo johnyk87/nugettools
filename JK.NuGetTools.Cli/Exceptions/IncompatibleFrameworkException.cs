@@ -3,6 +3,7 @@ namespace JK.NuGetTools.Cli.Exceptions
     using System;
     using System.Runtime.Serialization;
 
+    [Serializable]
     public class IncompatibleFrameworkException : NuGetToolsException
     {
         public IncompatibleFrameworkException()

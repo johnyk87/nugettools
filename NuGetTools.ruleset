@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RuleSet Name="NuGetTools Rules" Description="Code analysis rules for NuGetTools" ToolsVersion="15.0">
   <IncludeAll Action="Warning" />
+  <Rules AnalyzerId="SonarAnalyzer.CSharp" RuleNamespace="SonarAnalyzer.CSharp">
+    <Rule Id="S1075" Action="None" />
+  </Rules>
   <Rules AnalyzerId="StyleCop.Analyzers" RuleNamespace="StyleCop.Analyzers">
     <Rule Id="SA1652" Action="None" />
     <Rule Id="SA1633" Action="None" />

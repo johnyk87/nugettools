@@ -79,6 +79,8 @@
                 .UseDefaultConventions()
                 .UseConstructorInjection(serviceProvider);
 
+            app.OnExecute(app.Model.OnExecuteAsync);
+
             return app.Execute(args);
         }
 
@@ -86,9 +88,9 @@
         {
             var services = new ServiceCollection();
 
-            var console = PhysicalConsole.Singleton;
-            services.AddSingleton(console);
-            services.AddSingleton(console.Out);
+            var consoleInstance = PhysicalConsole.Singleton;
+            services.AddSingleton(consoleInstance);
+            services.AddSingleton(consoleInstance.Out);
 
             services.AddSingleton<NuGetRepositoryBuilder>();
 

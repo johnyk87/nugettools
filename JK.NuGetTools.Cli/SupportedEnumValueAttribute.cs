@@ -3,11 +3,11 @@ namespace JK.NuGetTools.Cli
     using System;
     using System.ComponentModel.DataAnnotations;
 
-    internal class SupportedEnumValue : ValidationAttribute
+    internal class SupportedEnumValueAttribute : ValidationAttribute
     {
         private readonly Type enumType;
 
-        public SupportedEnumValue(Type enumType)
+        public SupportedEnumValueAttribute(Type enumType)
             : base($"The value for {{0}} must be a supported {enumType.Name}.")
         {
             this.enumType = enumType;

@@ -29,8 +29,8 @@ namespace JK.NuGetTools.Cli
         private readonly Uri feedUrl;
         private readonly SourceCacheContext sourceCacheContext;
         private readonly ILogger logger;
-        private readonly Lazy<Task<MetadataResource>> metadataResource;
-        private readonly Lazy<Task<PackageMetadataResource>> packageMetadataResource;
+        private readonly Lazy<Task<MetadataResource>> metadataResourceAccessor;
+        private readonly Lazy<Task<PackageMetadataResource>> packageMetadataResourceAccessor;
 
         internal NuGetRepository(SourceRepository sourceRepository, SourceCacheContext sourceCacheContext, ILogger logger)
         {
@@ -38,11 +38,11 @@ namespace JK.NuGetTools.Cli
             this.feedUrl = this.sourceRepository.PackageSource.SourceUri;
             this.sourceCacheContext = sourceCacheContext;
             this.logger = logger;
-            this.metadataResource = new Lazy<Task<MetadataResource>>(this.CreateResourceAsync<MetadataResource>);
-            this.packageMetadataResource = new Lazy<Task<PackageMetadataResource>>(this.CreateResourceAsync<PackageMetadataResource>);
+            this.metadataResourceAccessor = new Lazy<Task<MetadataResource>>(this.CreateResourceAsync<MetadataResource>);
+            this.packageMetadataResourceAccessor = new Lazy<Task<PackageMetadataResource>>(this.CreateResourceAsync<PackageMetadataResource>);
         }
 
-        public async Task<PackageIdentity> GetLatestPackageAsync(
+        public Task<PackageIdentity> GetLatestPackageAsync(
             string packageId,
             VersionRange versionRange,
             CancellationToken cancellationToken)
@@ -52,21 +52,10 @@ namespace JK.NuGetTools.Cli
                 throw new ArgumentNullException(nameof(packageId));
             }
 
-            versionRange = new VersionRange(versionRange ?? VersionRange.All, new FloatRange(VersionFloatBehavior));
-
-            var packageVersions = await this.GetPackageVersionsAsync(packageId, cancellationToken).ConfigureAwait(false);
-            if (!packageVersions.Any())
-            {
-                throw new PackageNotFoundException($"Package \"{packageId}\" not found in repository {this.feedUrl.ToString()}");
-            }
-
-            var packageVersion = versionRange.FindBestMatch(packageVersions) ??
-                throw new PackageVersionNotFoundException($"Package \"{packageId}\" has no versions compatible with range \"{versionRange.ToString()}\".");
-
-            return new PackageIdentity(packageId, packageVersion);
+            return this.GetLatestPackageInternalAsync(packageId, versionRange, cancellationToken);
         }
 
-        public async Task<IEnumerable<PackageIdentity>> GetPackageDependenciesAsync(
+        public Task<IEnumerable<PackageIdentity>> GetPackageDependenciesAsync(
             PackageIdentity package,
             NuGetFramework targetFramework,
             IEnumerable<Regex> dependencyExclusionFilters,
@@ -87,13 +76,7 @@ namespace JK.NuGetTools.Cli
                 throw new ArgumentNullException(nameof(dependencyExclusionFilters));
             }
 
-            var packageMetadata = await this.GetPackageMetadataAsync(package, cancellationToken).ConfigureAwait(false);
-
-            var packageDependenciesTasks = this.ResolveDependencies(packageMetadata, targetFramework)
-                .Where(d => !dependencyExclusionFilters.Any(f => f.IsMatch(d.Id)))
-                .Select(p => this.GetLatestPackageAsync(p.Id, p.VersionRange, cancellationToken));
-
-            return await Task.WhenAll(packageDependenciesTasks).ConfigureAwait(false);
+            return this.GetPackageDependenciesInternalAsync(package, targetFramework, dependencyExclusionFilters, cancellationToken);
         }
 
         public Task<PackageHierarchy> GetPackageHierarchyAsync(
@@ -123,7 +106,7 @@ namespace JK.NuGetTools.Cli
                 throw new ArgumentNullException(nameof(expansionExclusionFilters));
             }
 
-            return this.GetPackageHierarchyAsync(
+            return this.GetPackageHierarchyInternalAsync(
                 package,
                 targetFramework,
                 dependencyExclusionFilters,
@@ -149,7 +132,34 @@ namespace JK.NuGetTools.Cli
             return key;
         }
 
-        private async Task<PackageHierarchy> GetPackageHierarchyAsync(
+        private async Task<PackageIdentity> GetLatestPackageInternalAsync(string packageId, VersionRange versionRange, CancellationToken cancellationToken)
+        {
+            versionRange = new VersionRange(versionRange ?? VersionRange.All, new FloatRange(VersionFloatBehavior));
+
+            var packageVersions = await this.GetPackageVersionsAsync(packageId, cancellationToken).ConfigureAwait(false);
+            if (!packageVersions.Any())
+            {
+                throw new PackageNotFoundException($"Package \"{packageId}\" not found in repository {this.feedUrl.ToString()}");
+            }
+
+            var packageVersion = versionRange.FindBestMatch(packageVersions) ??
+                throw new PackageVersionNotFoundException($"Package \"{packageId}\" has no versions compatible with range \"{versionRange.ToString()}\".");
+
+            return new PackageIdentity(packageId, packageVersion);
+        }
+
+        private async Task<IEnumerable<PackageIdentity>> GetPackageDependenciesInternalAsync(PackageIdentity package, NuGetFramework targetFramework, IEnumerable<Regex> dependencyExclusionFilters, CancellationToken cancellationToken)
+        {
+            var packageMetadata = await this.GetPackageMetadataAsync(package, cancellationToken).ConfigureAwait(false);
+
+            var packageDependenciesTasks = this.ResolveDependencies(packageMetadata, targetFramework)
+                .Where(d => !dependencyExclusionFilters.Any(f => f.IsMatch(d.Id)))
+                .Select(p => this.GetLatestPackageInternalAsync(p.Id, p.VersionRange, cancellationToken));
+
+            return await Task.WhenAll(packageDependenciesTasks).ConfigureAwait(false);
+        }
+
+        private async Task<PackageHierarchy> GetPackageHierarchyInternalAsync(
             PackageIdentity package,
             NuGetFramework targetFramework,
             IEnumerable<Regex> dependencyExclusionFilters,
@@ -167,7 +177,7 @@ namespace JK.NuGetTools.Cli
             var dependencies = default(IEnumerable<PackageIdentity>);
             try
             {
-                dependencies = await this.GetPackageDependenciesAsync(
+                dependencies = await this.GetPackageDependenciesInternalAsync(
                     package,
                     targetFramework,
                     dependencyExclusionFilters,
@@ -182,7 +192,7 @@ namespace JK.NuGetTools.Cli
 
             var dependencyHierarchiesTasks = dependencies
                 .Select(
-                    p => this.GetPackageHierarchyAsync(
+                    p => this.GetPackageHierarchyInternalAsync(
                         p,
                         targetFramework,
                         dependencyExclusionFilters,
@@ -207,7 +217,7 @@ namespace JK.NuGetTools.Cli
 
             return PackageVersionsCache.GetOrAdd(cacheKey, async (_) =>
             {
-                var metadataResource = await this.metadataResource.Value.ConfigureAwait(false);
+                var metadataResource = await this.metadataResourceAccessor.Value.ConfigureAwait(false);
 
                 return await metadataResource
                     .GetVersions(packageId, true, true, this.sourceCacheContext, this.logger, cancellationToken)
@@ -221,7 +231,7 @@ namespace JK.NuGetTools.Cli
 
             return PackageMetadataCache.GetOrAdd(cacheKey, async (_) =>
             {
-                var packageMetadataResource = await this.packageMetadataResource.Value.ConfigureAwait(false);
+                var packageMetadataResource = await this.packageMetadataResourceAccessor.Value.ConfigureAwait(false);
 
                 return await packageMetadataResource
                     .GetMetadataAsync(package, this.sourceCacheContext, this.logger, cancellationToken)
