@@ -25,8 +25,9 @@ namespace JK.NuGetTools.Cli.Writers
                 case WriterType.Graph:
                     return new GraphTextWriter(this.textWriter);
                 case WriterType.Tree:
-                default:
                     return new TreeTextWriter(this.textWriter);
+                default:
+                    throw new NotImplementedException($"Unsupported writer type: {writerType}.");
             }
         }
     }

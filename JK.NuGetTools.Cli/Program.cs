@@ -17,7 +17,7 @@
     public class Program
     {
         private const string DefaultTargetFrameworkString = FrameworkConstants.SpecialIdentifiers.Any;
-        private const string DefaultHierarchyWriterTypeString = "Tree";
+        private const string DefaultHierarchyWriterTypeString = nameof(TextHierarchyWriterFactory.WriterType.Tree);
         private const string DefaultDependencyExclusionFiltersString = "";
         private const string DefaultExpansionExclusionFiltersString = "^System|^Microsoft";
 
