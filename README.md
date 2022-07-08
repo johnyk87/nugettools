@@ -23,6 +23,7 @@ The following are a list of the most important features supported by this tool:
 ```shell
 foo@bar:~$ dotnet JK.NuGetTools.Cli.dll --help
 ```
+
 ```
 Usage: JK.NuGetTools.Cli [arguments] [options]
 
@@ -35,6 +36,8 @@ Options:
   -wt|--writer-type                   The type of writer to use to print the dependencies. Default: "Tree".
   -def|--dependency-exclusion-filter  The exclusion Regex filters to apply on the dependencies of each package. Packages matching the filter will not be listed as dependencies of other packages and won't not be expanded. Default: "".
   -eef|--expansion-exclusion-filter   The exclusion Regex filters to apply on the parent of a given dependency branch. Packages matching the filter may be listed but their dependencies will not be expanded. Default: "".
+  -u|--username                       Username to use for authenticated feed.
+  -p|--password                       Password to use for authenticated feed.
   -?|-h|--help                        Show help information
 ```
 

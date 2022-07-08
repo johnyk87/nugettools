@@ -1,11 +1,7 @@
 ﻿namespace JK.NuGetTools.Cli
 {
     using System;
-    using System.Collections.Generic;
     using System.ComponentModel.DataAnnotations;
-    using System.Linq;
-    using System.Reflection;
-    using System.Text.RegularExpressions;
     using System.Threading;
     using System.Threading.Tasks;
     using JK.NuGetTools.Cli.Utils;
@@ -13,7 +9,6 @@
     using McMaster.Extensions.CommandLineUtils;
     using Microsoft.Extensions.DependencyInjection;
     using NuGet.Frameworks;
-    using NuGet.Packaging.Core;
 
     public class Program
     {
@@ -69,6 +64,12 @@
         [Option("-eef|--expansion-exclusion-filter", Description = "The exclusion Regex filters to apply on the parent of a given dependency branch. Packages matching the filter may be listed but their dependencies will not be expanded. Default: \"" + DefaultExpansionExclusionFiltersString + "\".")]
         public string[] ExpansionExclusionFilters { get; }
 
+        [Option("-u|--username", Description = "Username to use for authenticated feed.")]
+        public string Username { get; }
+
+        [Option("-p|--password", Description = "Password to use for authenticated feed.")]
+        public string Password { get; }
+
         public static int Main(string[] args)
         {
             var serviceProvider = BuildServiceProvider();
@@ -105,6 +106,8 @@
         {
             var sourceRepository = this.sourceRepositoryBuilder
                 .WithFeedUrl(this.SourceFeedUrl ?? NuGetRepositoryBuilder.DefaultFeedUrl)
+                .WithUsername(this.Username)
+                .WithPassword(this.Password)
                 .Build();
             var cancellationToken = this.cancellationTokenSource.Token;
             var targetFramework = NuGetFramework.Parse(this.TargetFramework ?? DefaultTargetFrameworkString);

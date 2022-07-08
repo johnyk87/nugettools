@@ -2,6 +2,7 @@ namespace JK.NuGetTools.Cli
 {
     using System;
     using NuGet.Common;
+    using NuGet.Configuration;
     using NuGet.Protocol;
     using NuGet.Protocol.Core.Types;
 
@@ -12,6 +13,8 @@ namespace JK.NuGetTools.Cli
         private SourceCacheContext sourceCacheContext;
         private ILogger logger;
         private string feedUrl;
+        private string username;
+        private string password;
 
         public NuGetRepositoryBuilder()
         {
@@ -43,9 +46,32 @@ namespace JK.NuGetTools.Cli
             return this;
         }
 
+        public NuGetRepositoryBuilder WithUsername(string username)
+        {
+            this.username = username;
+            return this;
+        }
+
+        public NuGetRepositoryBuilder WithPassword(string password)
+        {
+            this.password = password;
+            return this;
+        }
+
         public NuGetRepository Build()
         {
-            var sourceRepository = Repository.Factory.GetCoreV3(this.feedUrl);
+            var source = new PackageSource(this.feedUrl);
+
+            if (!string.IsNullOrEmpty(this.username))
+            {
+                source.Credentials = new PackageSourceCredential(
+                    this.feedUrl,
+                    this.username,
+                    this.password,
+                    isPasswordClearText: true);
+            }
+
+            var sourceRepository = Repository.Factory.GetCoreV2(source);
 
             return new NuGetRepository(sourceRepository, this.sourceCacheContext, this.logger);
         }

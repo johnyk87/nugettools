@@ -5,6 +5,13 @@ VisualStudioVersion = 15.0.26124.0
 MinimumVisualStudioVersion = 15.0.26124.0
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JK.NuGetTools.Cli", "JK.NuGetTools.Cli\JK.NuGetTools.Cli.csproj", "{1CBECB02-8154-4F2F-A51C-365A7886455F}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "etc", "etc", "{A6532687-B2B8-4B06-A771-142DD7A3BB32}"
+	ProjectSection(SolutionItems) = preProject
+		README.md = README.md
+		NuGetTools.ruleset = NuGetTools.ruleset
+		docs\images\dependency_graph_nuget.protocol.png = docs\images\dependency_graph_nuget.protocol.png
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
