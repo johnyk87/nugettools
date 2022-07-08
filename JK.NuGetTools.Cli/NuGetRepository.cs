@@ -1,3 +1,6 @@
+//#define FLOAT_MINOR
+//#define FLOAT_MAJOR
+
 namespace JK.NuGetTools.Cli
 {
     using System;
@@ -11,13 +14,16 @@ namespace JK.NuGetTools.Cli
     using NuGet.Common;
     using NuGet.Frameworks;
     using NuGet.Packaging.Core;
-    using NuGet.Protocol;
     using NuGet.Protocol.Core.Types;
     using NuGet.Versioning;
 
     public class NuGetRepository
     {
-        private const NuGetVersionFloatBehavior VersionFloatBehavior = NuGetVersionFloatBehavior.Major;
+#if FLOAT_MAJOR
+        private static readonly FloatRange FloatRange = new FloatRange(NuGetVersionFloatBehavior.Major);
+#elif !FLOAT_MINOR
+        private static readonly FloatRange FloatRange = new FloatRange(NuGetVersionFloatBehavior.None);
+#endif
 
         private static readonly ConcurrentDictionary<string, Task<IEnumerable<NuGetVersion>>> PackageVersionsCache =
             new ConcurrentDictionary<string, Task<IEnumerable<NuGetVersion>>>();
@@ -132,9 +138,36 @@ namespace JK.NuGetTools.Cli
             return key;
         }
 
+        private static FloatRange CreateFloatRange(VersionRange versionRange)
+        {
+#if FLOAT_MINOR
+            if (versionRange == null || (!versionRange.HasUpperBound && !versionRange.HasLowerBound))
+            {
+                return new FloatRange(NuGetVersionFloatBehavior.Minor);
+            }
+
+            var majorVersion = 1;
+
+            if (versionRange.HasUpperBound)
+            {
+                majorVersion = versionRange.IsMaxInclusive
+                    ? versionRange.MaxVersion.Major
+                    : versionRange.MaxVersion.Major - 1;
+            }
+            else if (versionRange.HasLowerBound)
+            {
+                majorVersion = versionRange.MinVersion.Major;
+            }
+
+            return FloatRange.Parse($"{majorVersion}.*");
+#else
+            return FloatRange;
+#endif
+        }
+
         private async Task<PackageIdentity> GetLatestPackageInternalAsync(string packageId, VersionRange versionRange, CancellationToken cancellationToken)
         {
-            versionRange = new VersionRange(versionRange ?? VersionRange.All, new FloatRange(VersionFloatBehavior));
+            versionRange = new VersionRange(versionRange ?? VersionRange.All, CreateFloatRange(versionRange));
 
             var packageVersions = await this.GetPackageVersionsAsync(packageId, cancellationToken).ConfigureAwait(false);
             if (!packageVersions.Any())
