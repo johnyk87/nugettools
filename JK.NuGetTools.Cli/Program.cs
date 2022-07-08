@@ -9,6 +9,7 @@
     using McMaster.Extensions.CommandLineUtils;
     using Microsoft.Extensions.DependencyInjection;
     using NuGet.Frameworks;
+    using NuGet.Versioning;
 
     public class Program
     {
@@ -80,7 +81,7 @@
                 .UseDefaultConventions()
                 .UseConstructorInjection(serviceProvider);
 
-            app.OnExecute(app.Model.OnExecuteAsync);
+            app.OnExecuteAsync(app.Model.OnExecuteAsync);
 
             return app.Execute(args);
         }
@@ -102,14 +103,15 @@
             return services.BuildServiceProvider();
         }
 
-        private async Task<int> OnExecuteAsync()
+        private async Task<int> OnExecuteAsync(CancellationToken cancellationToken)
         {
             var sourceRepository = this.sourceRepositoryBuilder
                 .WithFeedUrl(this.SourceFeedUrl ?? NuGetRepositoryBuilder.DefaultFeedUrl)
                 .WithUsername(this.Username)
                 .WithPassword(this.Password)
                 .Build();
-            var cancellationToken = this.cancellationTokenSource.Token;
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(
+                this.cancellationTokenSource.Token, cancellationToken);
             var targetFramework = NuGetFramework.Parse(this.TargetFramework ?? DefaultTargetFrameworkString);
             var dependencyExclusionFilters = ConsoleUtils.ToRegexEnumerable(this.DependencyExclusionFilters, DefaultDependencyExclusionFiltersString);
             var expansionExclusionFilters = ConsoleUtils.ToRegexEnumerable(this.ExpansionExclusionFilters, DefaultExpansionExclusionFiltersString);
@@ -117,10 +119,10 @@
             try
             {
                 var package = await sourceRepository.GetLatestPackageAsync(
-                    this.PackageId, null, cancellationToken).ConfigureAwait(false);
+                    this.PackageId, null, cts.Token).ConfigureAwait(false);
 
                 var packageHierarchy = await sourceRepository.GetPackageHierarchyAsync(
-                    package, targetFramework, dependencyExclusionFilters, expansionExclusionFilters, cancellationToken).ConfigureAwait(false);
+                    package, targetFramework, dependencyExclusionFilters, expansionExclusionFilters, cts.Token).ConfigureAwait(false);
 
                 await this.WriteHierarchyAsync(packageHierarchy).ConfigureAwait(false);
 

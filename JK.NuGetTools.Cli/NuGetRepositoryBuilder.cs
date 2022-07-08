@@ -68,7 +68,8 @@ namespace JK.NuGetTools.Cli
                     this.feedUrl,
                     this.username,
                     this.password,
-                    isPasswordClearText: true);
+                    isPasswordClearText: true,
+                    validAuthenticationTypesText: null);
             }
 
             var sourceRepository = Repository.Factory.GetCoreV2(source);
