@@ -71,6 +71,9 @@
         [Option("-p|--password", Description = "Password to use for authenticated feed.")]
         public string Password { get; }
 
+        [Option("-pv|--package-version", Description = "Version of the target package to start with. Default: the latest version available.")]
+        public string PackageVersion { get; }
+
         public static int Main(string[] args)
         {
             var serviceProvider = BuildServiceProvider();
@@ -118,8 +121,12 @@
 
             try
             {
+                var versionRange = string.IsNullOrEmpty(this.PackageVersion)
+                    ? null
+                    : VersionRange.Parse(this.PackageVersion);
+
                 var package = await sourceRepository.GetLatestPackageAsync(
-                    this.PackageId, null, cts.Token).ConfigureAwait(false);
+                    this.PackageId, versionRange, cts.Token).ConfigureAwait(false);
 
                 var packageHierarchy = await sourceRepository.GetPackageHierarchyAsync(
                     package, targetFramework, dependencyExclusionFilters, expansionExclusionFilters, cts.Token).ConfigureAwait(false);

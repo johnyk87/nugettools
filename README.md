@@ -25,7 +25,7 @@ foo@bar:~$ dotnet JK.NuGetTools.Cli.dll --help
 ```
 
 ```
-Usage: JK.NuGetTools.Cli [arguments] [options]
+Usage: JK.NuGetTools.Cli [options] <PackageId>
 
 Arguments:
   PackageId                           The package identifier
@@ -34,11 +34,14 @@ Options:
   -s|--source-feed-url                The URL of the source feed. Default: "https://api.nuget.org/v3/index.json".
   -t|--target-framework               The target framework. Default: "Any".
   -wt|--writer-type                   The type of writer to use to print the dependencies. Default: "Tree".
-  -def|--dependency-exclusion-filter  The exclusion Regex filters to apply on the dependencies of each package. Packages matching the filter will not be listed as dependencies of other packages and won't not be expanded. Default: "".
-  -eef|--expansion-exclusion-filter   The exclusion Regex filters to apply on the parent of a given dependency branch. Packages matching the filter may be listed but their dependencies will not be expanded. Default: "".
+  -def|--dependency-exclusion-filter  The exclusion Regex filters to apply on the dependencies of each package. Packages matching the filter will not be listed as dependencies of other packages and won't not be
+                                      expanded. Default: "".
+  -eef|--expansion-exclusion-filter   The exclusion Regex filters to apply on the parent of a given dependency branch. Packages matching the filter may be listed but their dependencies will not be expanded.
+                                      Default: "".
   -u|--username                       Username to use for authenticated feed.
   -p|--password                       Password to use for authenticated feed.
-  -?|-h|--help                        Show help information
+  -pv|--package-version               Version of the target package to start with. Default: the latest version available.
+  -?|-h|--help                        Show help information.
 ```
 
 ---
